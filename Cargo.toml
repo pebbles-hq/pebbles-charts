@@ -8,8 +8,9 @@ name = "pebbles-charts"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.90"
-description = "Composable, themeable chart widgets (bar, line, area, pie, donut) for the Pebbles GUI framework."
-license = "MIT OR Apache-2.0"
+description = "Composable, themeable chart widgets (bar, line, area, pie, donut) for the Pebbles GUI framework, drawn on the GPU canvas. Part of the Pebbles ecosystem."
+authors = ["Reyco Seguma"]
+license = "Apache-2.0"
 repository = "https://github.com/pebbles-hq/pebbles-charts"
 
 [dependencies]
