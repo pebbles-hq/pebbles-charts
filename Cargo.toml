@@ -1,0 +1,22 @@
+# pebbles-charts — composable chart widgets for the Pebbles GUI framework: bar, line,
+# area, pie, and donut, with a config-driven palette + legend, drawn on the GPU canvas.
+[workspace]
+members = [".", "examples/demo"]
+
+[package]
+name = "pebbles-charts"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+description = "Composable, themeable chart widgets (bar, line, area, pie, donut) for the Pebbles GUI framework."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/pebbles-hq/pebbles-charts"
+
+[dependencies]
+pebbles = { git = "https://github.com/pebbles-hq/pebbles" }
+
+[profile.dev]
+opt-level = 0
+
+[profile.dev.package."*"]
+opt-level = 2
