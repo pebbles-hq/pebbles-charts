@@ -1,10 +1,11 @@
 //! # pebbles-charts
 //!
 //! Composable, themeable **chart widgets** for the [Pebbles](https://github.com/pebbles-hq/pebbles)
-//! GUI framework — **bar, line, area, pie, and donut** — drawn on the GPU canvas with a
-//! config-driven palette and an auto legend. The chrome (grid, axis labels) follows the
-//! app's `theme()`, so charts match light/dark for free; series colors come from a
-//! [`palette`] you can override per series.
+//! GUI framework — from everyday bars, lines, areas, pie, and donut charts to stacked,
+//! scatter, radar, radial, dense, flow, and sparkline variants — drawn on the GPU canvas
+//! with a config-driven palette, y-axis values, cartesian tooltips, and an auto legend. The
+//! chrome (grid, axis labels) follows the app's `theme()`, so charts match light/dark
+//! for free; series colors come from a [`palette`] you can override per series.
 //!
 //! ```ignore
 //! use pebbles::prelude::*;
@@ -25,7 +26,20 @@
 
 mod charts;
 
-pub use charts::{AreaChart, BarChart, LineChart, PieChart, area_chart, bar_chart, donut_chart, line_chart, pie_chart};
+pub use charts::{
+    AreaChart, AxisScale, BarChart, BubbleChart, Candle, CandlestickChart, CategoryLabelMode,
+    ComboChart, ComboSeries, CurveInterpolation, FunnelChart, GaugeChart, HeatCell, HeatmapChart,
+    HorizontalBarChart, LegendPosition, LineChart, OhlcChart, PercentStackedAreaChart,
+    PercentStackedBarChart,
+    PieChart, PointSeries, RadarChart, RadialProgressChart, ReferenceBand, ReferenceLine,
+    SankeyChart, SankeyLink, ScatterChart, ScatterPoint, SeriesKind, Sparkline, StackedAreaChart,
+    StackedBarChart, SteppedLineChart, area_chart, bar_chart, bubble_chart, bubble_point, candle,
+    candlestick_chart, combo_chart, combo_series, donut_chart, funnel_chart, gauge_chart,
+    heat_cell, heatmap_chart, horizontal_bar_chart, line_chart, ohlc_chart,
+    percent_stacked_area_chart, percent_stacked_bar_chart, pie_chart, point, point_series,
+    progress_ring, radar_chart, reference_band, reference_line, sankey_chart, sankey_link,
+    scatter_chart, sparkline, stacked_area_chart, stacked_bar_chart, stepped_line_chart,
+};
 
 use pebbles::prelude::*;
 
@@ -37,9 +51,36 @@ pub struct Series {
     pub color: Option<Color>,
 }
 
+/// Values accepted by [`series`]. `None` becomes a visible gap for line/area charts and
+/// an omitted mark for bars/tooltips.
+pub trait IntoSeriesValues {
+    fn into_series_values(self) -> Vec<f64>;
+}
+
+impl IntoSeriesValues for Vec<f64> {
+    fn into_series_values(self) -> Vec<f64> {
+        self
+    }
+}
+
+impl IntoSeriesValues for Vec<Option<f64>> {
+    fn into_series_values(self) -> Vec<f64> {
+        self.into_iter().map(|v| v.unwrap_or(f64::NAN)).collect()
+    }
+}
+
 /// Create a [`Series`]. Give it a color with [`Series::color`], or let the palette pick.
-pub fn series(label: impl Into<String>, values: Vec<f64>) -> Series {
-    Series { label: label.into(), values, color: None }
+pub fn series(label: impl Into<String>, values: impl IntoSeriesValues) -> Series {
+    Series {
+        label: label.into(),
+        values: values.into_series_values(),
+        color: None,
+    }
+}
+
+/// Create a [`Series`] with optional values; `None` draws a gap / omitted mark.
+pub fn series_with_gaps(label: impl Into<String>, values: Vec<Option<f64>>) -> Series {
+    series(label, values)
 }
 
 impl Series {
@@ -59,7 +100,11 @@ pub struct Slice {
 
 /// Create a [`Slice`].
 pub fn slice(label: impl Into<String>, value: f64) -> Slice {
-    Slice { label: label.into(), value, color: None }
+    Slice {
+        label: label.into(),
+        value,
+        color: None,
+    }
 }
 
 impl Slice {
