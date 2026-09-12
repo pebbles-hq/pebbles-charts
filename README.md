@@ -219,6 +219,9 @@ semantics tree. Charts are also keyboard-focusable with ←/→ category travers
   fallback); pair with `.aspect_ratio(..)` for the height.
 - **Aspect ratio** — `.aspect_ratio(16.0/9.0)` on cartesian charts derives the height from
   the width (pie/donut are square by construction).
+- **Plot padding** — `.plot_padding(EdgeInsets { left, top, right, bottom })` tunes the
+  internal inset between the axes and the marks (default `10/12/10/8`); the draw, labels,
+  and hit-testing all share it, so alignment stays correct.
 - **States** — a chart renders a distinct centered panel for each of: empty (auto, on
   no/zero/non-finite data → "No data"), `.loading(true)` ("Loading…"), and `.error(msg)`.
 - **Gradient area fills** — `.area_gradient(true)` fills area / stacked-area series with a

@@ -424,21 +424,22 @@ fn compact_number(value: f64) -> String {
     format!("{scaled:.decimals$}{suffix}")
 }
 
-fn hit_category(pos: Offset, width: f64, height: f64, ncat: usize) -> Option<usize> {
+fn hit_category(pos: Offset, width: f64, height: f64, ncat: usize, pad: EdgeInsets) -> Option<usize> {
     let ncat = ncat.max(1);
-    let pw = (width - PLOT_LEFT - PLOT_RIGHT).max(1.0);
-    let y1 = (height - PLOT_BOTTOM).max(PLOT_TOP + 1.0);
-    if pos.x < PLOT_LEFT || pos.x > PLOT_LEFT + pw || pos.y < PLOT_TOP || pos.y > y1 {
+    let pw = (width - pad.left - pad.right).max(1.0);
+    let y1 = (height - pad.bottom).max(pad.top + 1.0);
+    if pos.x < pad.left || pos.x > pad.left + pw || pos.y < pad.top || pos.y > y1 {
         return None;
     }
     let slot = pw / ncat as f64;
     Some(
-        ((pos.x - PLOT_LEFT) / slot)
+        ((pos.x - pad.left) / slot)
             .floor()
             .clamp(0.0, (ncat - 1) as f64) as usize,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn hit_cartesian_datum(
     kind: Kind,
     pos: Offset,
@@ -447,12 +448,13 @@ fn hit_cartesian_datum(
     ncat: usize,
     vals: &[Vec<f64>],
     axis: &ValueAxis,
+    pad: EdgeInsets,
 ) -> Option<ActiveDatum> {
-    let category = hit_category(pos, width, height, ncat)?;
+    let category = hit_category(pos, width, height, ncat, pad)?;
     let series = match kind {
-        Kind::Bar => hit_bar_series(pos, width, ncat, category, vals),
+        Kind::Bar => hit_bar_series(pos, width, ncat, category, vals, pad),
         Kind::StackedBar | Kind::PercentStackedBar | Kind::HorizontalBar => {
-            hit_bar_series(pos, width, ncat, category, vals)
+            hit_bar_series(pos, width, ncat, category, vals, pad)
         }
         Kind::Line
         | Kind::SteppedLine
@@ -460,7 +462,7 @@ fn hit_cartesian_datum(
         | Kind::StackedArea
         | Kind::PercentStackedArea
         | Kind::Combo
-        | Kind::Sparkline => hit_nearest_line_series(pos, height, category, vals, axis),
+        | Kind::Sparkline => hit_nearest_line_series(pos, height, category, vals, axis, pad),
     };
     Some(ActiveDatum { category, series })
 }
@@ -471,13 +473,14 @@ fn hit_bar_series(
     ncat: usize,
     category: usize,
     vals: &[Vec<f64>],
+    pad: EdgeInsets,
 ) -> Option<usize> {
     let nser = vals.len().max(1);
-    let pw = (width - PLOT_LEFT - PLOT_RIGHT).max(1.0);
+    let pw = (width - pad.left - pad.right).max(1.0);
     let slot = pw / ncat.max(1) as f64;
     let group_w = slot * 0.7;
     let bw = group_w / nser as f64;
-    let cx = PLOT_LEFT + pw * (category as f64 + 0.5) / ncat.max(1) as f64;
+    let cx = pad.left + pw * (category as f64 + 0.5) / ncat.max(1) as f64;
     let group_x = cx - group_w / 2.0;
     let local = ((pos.x - group_x) / bw).floor() as isize;
     let preferred = (local >= 0 && (local as usize) < vals.len()).then_some(local as usize);
@@ -509,9 +512,10 @@ fn hit_nearest_line_series(
     category: usize,
     vals: &[Vec<f64>],
     axis: &ValueAxis,
+    pad: EdgeInsets,
 ) -> Option<usize> {
-    let bottom = (height - PLOT_BOTTOM).max(PLOT_TOP + 1.0);
-    let scale = axis.scale(PLOT_TOP, bottom);
+    let bottom = (height - pad.bottom).max(pad.top + 1.0);
+    let scale = axis.scale(pad.top, bottom);
     vals.iter()
         .enumerate()
         .filter_map(|(si, sv)| {
@@ -982,20 +986,35 @@ mod tests {
         assert_eq!(aggregated.series[0].values, vec![1.0, 7.0]);
     }
 
+    fn default_pad() -> EdgeInsets {
+        EdgeInsets { left: PLOT_LEFT, top: PLOT_TOP, right: PLOT_RIGHT, bottom: PLOT_BOTTOM }
+    }
+
     #[test]
     fn hit_category_snaps_x_to_category_slot() {
+        let pad = default_pad();
         assert_eq!(
-            hit_category(Offset::new(12.0, 40.0), 320.0, 180.0, 3),
+            hit_category(Offset::new(12.0, 40.0), 320.0, 180.0, 3, pad),
             Some(0)
         );
         assert_eq!(
-            hit_category(Offset::new(160.0, 40.0), 320.0, 180.0, 3),
+            hit_category(Offset::new(160.0, 40.0), 320.0, 180.0, 3, pad),
             Some(1)
         );
         assert_eq!(
-            hit_category(Offset::new(400.0, 40.0), 320.0, 180.0, 3),
+            hit_category(Offset::new(400.0, 40.0), 320.0, 180.0, 3, pad),
             None
         );
+    }
+
+    #[test]
+    fn custom_plot_padding_shifts_hit_test_consistently() {
+        // With a big left inset, a point that was category 0 at the default inset must still
+        // resolve correctly under the wider padding — proving draw/hit share one value.
+        let pad = EdgeInsets { left: 60.0, top: 12.0, right: 10.0, bottom: 8.0 };
+        // x just inside the left inset → first category; x left of it → no hit.
+        assert_eq!(hit_category(Offset::new(62.0, 40.0), 320.0, 180.0, 3, pad), Some(0));
+        assert_eq!(hit_category(Offset::new(40.0, 40.0), 320.0, 180.0, 3, pad), None);
     }
 
     #[test]
@@ -1011,6 +1030,7 @@ mod tests {
             2,
             &vals,
             &axis,
+            default_pad(),
         );
 
         assert_eq!(
@@ -1140,6 +1160,7 @@ pub struct CartesianChart {
     loading: bool,
     error: Option<String>,
     fill_width: bool,
+    plot_padding: Option<EdgeInsets>,
 }
 
 /// Alias — a bar chart. See [`bar_chart`].
@@ -1206,6 +1227,7 @@ fn cartesian(kind: Kind, categories: Vec<String>, series: Vec<Series>) -> Cartes
         loading: false,
         error: None,
         fill_width: false,
+        plot_padding: None,
     }
 }
 
@@ -1366,6 +1388,14 @@ impl CartesianChart {
     /// the fallback when the parent is unbounded.
     pub fn fill_width(mut self, on: bool) -> Self {
         self.fill_width = on;
+        self
+    }
+    /// Override the internal plot inset (space between the axes and the plotted marks).
+    /// Defaults to `10/12/10/8` (l/t/r/b). Increase it to give long value labels or tall
+    /// data-labels more room. The draw, hit-testing, and every overlay share this value, so
+    /// alignment stays correct.
+    pub fn plot_padding(mut self, padding: EdgeInsets) -> Self {
+        self.plot_padding = Some(padding);
         self
     }
     /// Show a loading placeholder (a "Loading…" panel at the chart's footprint) instead of
@@ -1709,6 +1739,14 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
     let width = chart.width;
     // Aspect-ratio lock: derive the height from the width so the chart keeps its shape.
     let height = chart.aspect_ratio.map(|r| width / r).unwrap_or(chart.height);
+    // Internal plot inset — one value shared by the draw, hit-testing, and every overlay so
+    // they stay aligned. Defaults to the tuned 10/12/10/8.
+    let pad = chart.plot_padding.unwrap_or(EdgeInsets {
+        left: PLOT_LEFT,
+        top: PLOT_TOP,
+        right: PLOT_RIGHT,
+        bottom: PLOT_BOTTOM,
+    });
     // Loading / error take priority over the plot and over the empty state.
     if let Some(msg) = &chart.error {
         return empty_placeholder(width, height, msg);
@@ -2002,7 +2040,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
 
     let plot = canvas(move |c: &mut Canvas<'_>| {
         let s = c.size();
-        let (pl, pt, pr, pb) = (PLOT_LEFT, PLOT_TOP, PLOT_RIGHT, PLOT_BOTTOM);
+        let (pl, pt, pr, pb) = (pad.left, pad.top, pad.right, pad.bottom);
         let pw = (s.width - pl - pr).max(1.0);
         let ph = (s.height - pt - pb).max(1.0);
         let x0 = pl;
@@ -2368,6 +2406,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
             label_c,
             label_px,
             &font,
+            pad,
         ));
     }
     plot_layers.push(reference_labels(
@@ -2377,6 +2416,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         plot_width,
         height,
         label_c,
+        pad,
     ));
     if !annotations.is_empty() && anim_t >= 0.999 && data_t_val >= 0.999 {
         plot_layers.push(annotation_layer(
@@ -2389,6 +2429,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
             label_c,
             label_px,
             &font,
+            pad,
         ));
     }
     let plot_surface = sized_box(stack(plot_layers))
@@ -2406,7 +2447,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         let format_value = format_value.clone();
         Rc::new(move |local: Offset, global: Offset| {
             if let Some(hit) =
-                hit_cartesian_datum(kind, local, plot_width, height, ncat, &vals, &axis)
+                hit_cartesian_datum(kind, local, plot_width, height, ncat, &vals, &axis, pad)
             {
                 active.set(Some(hit));
                 if tooltip {
@@ -2494,7 +2535,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
             let tap_point = tap_point.clone();
             move |e: PointerEvent| {
                 if let Some(hit) =
-                    hit_cartesian_datum(kind, e.position, plot_width, height, ncat, &vals, &axis)
+                    hit_cartesian_datum(kind, e.position, plot_width, height, ncat, &vals, &axis, pad)
                 {
                     tap_point(hit);
                 }
@@ -2512,6 +2553,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                 TextAlign::Right,
                 label_px,
                 &font,
+                pad,
             ));
             axis_row.push(gap_w(Y_AXIS_GAP).into_widget());
         }
@@ -2526,6 +2568,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                 TextAlign::Left,
                 label_px,
                 &font,
+                pad,
             ));
         }
         row(axis_row).into_widget()
@@ -2555,10 +2598,10 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         // cells must divide that SAME inset span — otherwise they fan out from the bars
         // (first label left of its bar, last label right of its bar). Add the plot padding
         // to the axis gutters and give the cells the inset width.
-        let label_span = (plot_width - PLOT_LEFT - PLOT_RIGHT).max(1.0);
+        let label_span = (plot_width - pad.left - pad.right).max(1.0);
         col.push(
             row(children![
-                gap_w(left_axis_width + PLOT_LEFT).into_widget(),
+                gap_w(left_axis_width + pad.left).into_widget(),
                 expanded(row(category_label_widgets(
                     &categories,
                     label_span,
@@ -2567,7 +2610,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                     label_px,
                     &font,
                 ))),
-                gap_w(right_axis_width + PLOT_RIGHT).into_widget(),
+                gap_w(right_axis_width + pad.right).into_widget(),
             ])
             .into_widget(),
         );
@@ -2757,15 +2800,16 @@ fn reference_labels(
     width: f64,
     height: f64,
     color: Color,
+    pad: EdgeInsets,
 ) -> AnyWidget {
-    let bottom = (height - PLOT_BOTTOM).max(PLOT_TOP + 1.0);
-    let scale = axis.scale(PLOT_TOP, bottom);
+    let bottom = (height - pad.bottom).max(pad.top + 1.0);
+    let scale = axis.scale(pad.top, bottom);
     let mut items = Vec::new();
     for line in lines {
         let Some(label) = &line.label else {
             continue;
         };
-        let y = scale.map(line.value).clamp(PLOT_TOP, bottom);
+        let y = scale.map(line.value).clamp(pad.top, bottom);
         items.push(
             positioned(
                 sized_box(
@@ -2786,8 +2830,8 @@ fn reference_labels(
         let Some(label) = &band.label else {
             continue;
         };
-        let y0 = scale.map(band.start).clamp(PLOT_TOP, bottom);
-        let y1 = scale.map(band.end).clamp(PLOT_TOP, bottom);
+        let y0 = scale.map(band.start).clamp(pad.top, bottom);
+        let y1 = scale.map(band.end).clamp(pad.top, bottom);
         let y = (y0 + y1) / 2.0;
         items.push(
             positioned(
@@ -2822,10 +2866,11 @@ fn cartesian_data_labels(
     color: Color,
     label_px: f32,
     font: &Option<String>,
+    pad: EdgeInsets,
 ) -> AnyWidget {
-    let bottom = (height - PLOT_BOTTOM).max(PLOT_TOP + 1.0);
-    let scale = axis.scale(PLOT_TOP, bottom);
-    let pw = (width - PLOT_LEFT - PLOT_RIGHT).max(1.0);
+    let bottom = (height - pad.bottom).max(pad.top + 1.0);
+    let scale = axis.scale(pad.top, bottom);
+    let pw = (width - pad.left - pad.right).max(1.0);
     let ncat = vals.iter().map(Vec::len).max().unwrap_or(0).max(1);
     let nser = vals.len().max(1);
     let label_w = 42.0;
@@ -2838,14 +2883,14 @@ fn cartesian_data_labels(
             }
             let (x, y, align) = match kind {
                 Kind::HorizontalBar => {
-                    let x_scale = LinearScale::new(axis.min, axis.max, PLOT_LEFT, PLOT_LEFT + pw);
-                    let slot = (bottom - PLOT_TOP).max(1.0) / ncat as f64;
+                    let x_scale = LinearScale::new(axis.min, axis.max, pad.left, pad.left + pw);
+                    let slot = (bottom - pad.top).max(1.0) / ncat as f64;
                     let group_h = slot * 0.7;
                     let bh = group_h / nser as f64;
-                    let x = x_scale.map(v).clamp(PLOT_LEFT, PLOT_LEFT + pw);
+                    let x = x_scale.map(v).clamp(pad.left, pad.left + pw);
                     (
                         if v >= 0.0 { x + 4.0 } else { x - label_w - 4.0 },
-                        PLOT_TOP + slot * (i as f64 + 0.5) - group_h / 2.0 + si as f64 * bh
+                        pad.top + slot * (i as f64 + 0.5) - group_h / 2.0 + si as f64 * bh
                             + bh / 2.0
                             - label_h / 2.0,
                         if v >= 0.0 { TextAlign::Left } else { TextAlign::Right },
@@ -2853,7 +2898,7 @@ fn cartesian_data_labels(
                 }
                 _ => {
                     let slot = pw / ncat as f64;
-                    let x = PLOT_LEFT + pw * (i as f64 + 0.5) / ncat as f64;
+                    let x = pad.left + pw * (i as f64 + 0.5) / ncat as f64;
                     let x = if kind == Kind::Bar {
                         let group_w = slot * 0.7;
                         let bw = group_w / nser as f64;
@@ -2861,7 +2906,7 @@ fn cartesian_data_labels(
                     } else {
                         x
                     };
-                    let y = scale.map(v).clamp(PLOT_TOP, bottom);
+                    let y = scale.map(v).clamp(pad.top, bottom);
                     (x - label_w / 2.0, y - label_h - 5.0, TextAlign::Center)
                 }
             };
@@ -2901,10 +2946,11 @@ fn annotation_layer(
     label_color: Color,
     label_px: f32,
     font: &Option<String>,
+    pad: EdgeInsets,
 ) -> AnyWidget {
-    let bottom = (height - PLOT_BOTTOM).max(PLOT_TOP + 1.0);
-    let scale = axis.scale(PLOT_TOP, bottom);
-    let pw = (width - PLOT_LEFT - PLOT_RIGHT).max(1.0);
+    let bottom = (height - pad.bottom).max(pad.top + 1.0);
+    let scale = axis.scale(pad.top, bottom);
+    let pw = (width - pad.left - pad.right).max(1.0);
     let ncatf = ncat.max(1) as f64;
     let dot = 8.0;
     let lw = 120.0;
@@ -2914,8 +2960,8 @@ fn annotation_layer(
             continue;
         }
         let color = a.color.unwrap_or(ref_color);
-        let cx = PLOT_LEFT + pw * (a.category as f64 + 0.5) / ncatf;
-        let cy = scale.map(a.value).clamp(PLOT_TOP, bottom);
+        let cx = pad.left + pw * (a.category as f64 + 0.5) / ncatf;
+        let cy = scale.map(a.value).clamp(pad.top, bottom);
         items.push(
             positioned(container().width(dot).height(dot).decoration(
                 BoxDecoration::new().color(color).radius(BorderRadius::all(dot / 2.0)),
@@ -2949,9 +2995,10 @@ fn y_axis_labels(
     align: TextAlign,
     label_px: f32,
     font: &Option<String>,
+    pad: EdgeInsets,
 ) -> AnyWidget {
-    let bottom = (height - PLOT_BOTTOM).max(PLOT_TOP + 1.0);
-    let scale = axis.scale(PLOT_TOP, bottom);
+    let bottom = (height - pad.bottom).max(pad.top + 1.0);
+    let scale = axis.scale(pad.top, bottom);
     let mut items = Vec::new();
     for (&tick, label) in axis.ticks.iter().zip(labels.into_iter()) {
         let y = scale.map(tick);
