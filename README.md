@@ -170,7 +170,9 @@ values. Adding or removing a series/slice re-runs the reveal as an enter animati
 Animations **auto-honor the OS reduced-motion setting** — when the user has asked to
 minimize motion (`prefers-reduced-motion` on web, the desktop equivalent otherwise),
 charts render statically by default. Force it either way with `.animate(true|false)`, and
-tune the duration with `.animation_ms(n)` (default 600, pie 700).
+tune the duration with `.animation_ms(n)` (default 600, pie 700). Adding a series re-runs
+the reveal (enter); removing one (matched by label) fades that series out as a receding
+ghost of its real last values (exit) — draw-only, never touching the scale or the data.
 
 ## Accessibility
 

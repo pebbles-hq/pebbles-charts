@@ -1722,6 +1722,15 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
     let data_t = create_signal(1.0_f64);
     let last_full = create_signal(None::<Vec<Vec<f64>>>);
     let from_full = create_signal(Vec::<Vec<f64>>::new());
+    // Track series labels across renders to tell an ADD from a REMOVE on a shape change:
+    // an add re-wipes (enter), a pure removal is handled by the exit-fade block below.
+    let last_labels = create_signal(Vec::<String>::new());
+    let cur_labels: Vec<String> = series.iter().map(|s| s.label.clone()).collect();
+    let series_added = {
+        let prev = last_labels.peek();
+        !prev.is_empty() && cur_labels.iter().any(|l| !prev.contains(l))
+    };
+    last_labels.set(cur_labels);
     {
         let prev = last_full.peek();
         let same_shape = prev.as_ref().is_some_and(|p| {
@@ -1738,11 +1747,11 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
             // First mount → no morph (the entry wipe handles the reveal).
             from_full.set(full_target.clone());
         } else if changed {
-            // Shape changed (a series entered / left) → re-run the entry wipe as an enter
-            // animation and snap the values (no per-datum morph across a shape change).
+            // Shape changed → snap the values. A series ADD re-runs the entry wipe (enter
+            // animation); a pure REMOVE skips the wipe and fades the gone series out below.
             from_full.set(full_target.clone());
             data_t.set(1.0);
-            if animate {
+            if animate && series_added {
                 anim.set(0.0);
                 pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
             }
@@ -1793,6 +1802,38 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         .enumerate()
         .map(|(i, s)| s.color.unwrap_or_else(|| pal_color(i)))
         .collect();
+
+    // Per-series exit fade: when a series is removed (matched by label, same category
+    // count), keep drawing its REAL last values as a fading ghost line for one animation
+    // cycle, so a removed series recedes instead of vanishing. Enter is the shape-change
+    // re-wipe above. Snapshots the last-rendered (label, values, color) to recover a gone
+    // series' data. Values/hit-testing/scale are unaffected — the ghost is draw-only.
+    let ncat_now = categories.len();
+    let exiting = create_signal(Vec::<(Vec<f64>, Color)>::new());
+    let exit_t = create_signal(1.0_f64);
+    let prev_rendered = create_signal(Vec::<(String, Vec<f64>, Color)>::new());
+    {
+        let cur: Vec<(String, Vec<f64>, Color)> = series
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.label.clone(), s.values.clone(), all_colors[i]))
+            .collect();
+        let prev = prev_rendered.peek();
+        let removed: Vec<(Vec<f64>, Color)> = prev
+            .iter()
+            .filter(|(l, v, _)| v.len() == ncat_now && !cur.iter().any(|(cl, _, _)| cl == l))
+            .map(|(_, v, c)| (v.clone(), *c))
+            .collect();
+        if !removed.is_empty() && animate {
+            exiting.set(removed);
+            exit_t.set(0.0);
+            pebbles::core::animation::animate_to(exit_t, 1.0, animation_ms as f64 / 1000.0);
+        }
+        prev_rendered.set(cur);
+    }
+    let exit_t_val = if animate { exit_t.get() } else { 1.0 };
+    let exiting_series = if exit_t_val < 1.0 { exiting.peek() } else { Vec::new() };
+
     let visible: Vec<usize> = (0..series.len()).filter(|i| !hidden_set.contains(i)).collect();
     // Visible-only views: everything downstream (scale, draw, hit-test, tooltip) reads
     // these, so hiding a series rescales the axis and reflows grouped bars automatically.
@@ -2172,6 +2213,29 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         }
         if wiping {
             c.pop_clip();
+        }
+        // Per-series exit fade: draw each removed series' real last values as a fading ghost
+        // line (outside the entry-wipe clip), receding over the current scale.
+        if !exiting_series.is_empty() {
+            let a = ((1.0 - exit_t_val) as f32).clamp(0.0, 1.0);
+            for (evals, ecolor) in &exiting_series {
+                draw_line_area_series(
+                    c,
+                    evals,
+                    usize::MAX,
+                    false,
+                    false,
+                    curve,
+                    baseline,
+                    &y_scale,
+                    &cx_of,
+                    with_alpha(*ecolor, a * 0.9),
+                    None,
+                    line_w,
+                    point_r * a as f64,
+                    area_a,
+                );
+            }
         }
     })
     .width(plot_width)
