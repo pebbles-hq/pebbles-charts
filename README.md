@@ -247,15 +247,24 @@ std::fs::write("chart.png", png)?;
 
 ```sh
 cargo run -p demo
-# headless screenshot (no display needed):
-SHOT=1180:1600:/tmp/charts.rgba cargo run -p demo
+# headless screenshot (no display needed); reduced-motion renders the static frame:
+PEBBLES_REDUCED_MOTION=1 SHOT=1180:1600:/tmp/charts.rgba cargo run -p demo --release
 ```
+
+## Contributing
+
+Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, the module
+map, and the checks CI runs, and [`ARCHITECTURE.md`](ARCHITECTURE.md) for how a chart goes
+from builder to pixels. Notable changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
+
+The crate is `#![forbid(unsafe_code)]` and `#![deny(missing_docs)]`, and won't panic on
+malformed data — please keep it that way (add a case to `tests/robustness.rs` when you touch
+drawing or layout).
 
 ## Roadmap
 
-- Responsive fill-parent sizing.
-- A per-slot `ChartStyle` (fonts, strokes, tick counts) beyond the palette.
-- Per-series fade-out on removal.
+- SVG export (PNG export already works via `pebbles::shell::capture`).
+- Publishing to crates.io (pending the framework's own release).
 
 ## License
 

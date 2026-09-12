@@ -42,8 +42,10 @@
 //!
 //! Everything a caller needs is re-exported at the crate root (below).
 
-// Every public item must be documented — the compiler enforces it.
+// Every public item must be documented, and the crate contains no `unsafe` — both are
+// compiler-enforced.
 #![deny(missing_docs)]
+#![forbid(unsafe_code)]
 
 // --- concept modules (shared internals are private to the crate) --------------
 pub mod config;
