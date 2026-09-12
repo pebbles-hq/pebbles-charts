@@ -173,6 +173,13 @@ with `.animate(bool)` (default on — set false to honor a reduced-motion prefer
 - **Series colors** come from a built-in [`palette`] (6 distinct hues, cycled), or set
   one explicitly: `series("Desktop", vals).color(Color::from_rgba8(0x63,0x66,0xF1,0xFF))`
   / `slice("Chrome", 62.0).color(..)`.
+- **Whole-palette override** — swap the categorical ramp for a chart with
+  `.palette(vec![..])` (cartesian + pie/donut). Pass `cvd_palette().to_vec()` for a
+  built-in **colorblind-safe** ramp (Okabe–Ito), or any custom `Vec<Color>`; per-series /
+  per-slice `.color(..)` still wins.
+- **Empty state** — a chart handed no data (empty series/slices, or only missing/zero
+  values) renders a calm centered "No data" panel at its footprint instead of a blank or
+  broken plot — the state a live dashboard hits before its first payload lands.
 - **Legend** is generated from series/slice labels; hide with `.legend(false)`, move it
   with `.legend_position(..)`, show per-entry totals/percentages with `.legend_values(true)`,
   and it's interactive by default (click to toggle a series/slice).

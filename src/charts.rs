@@ -1092,6 +1092,7 @@ pub struct CartesianChart {
     legend_values: bool,
     animate: bool,
     animation_ms: u32,
+    palette: Option<Vec<Color>>,
 }
 
 /// Alias — a bar chart. See [`bar_chart`].
@@ -1149,6 +1150,7 @@ fn cartesian(kind: Kind, categories: Vec<String>, series: Vec<Series>) -> Cartes
         legend_values: false,
         animate: true,
         animation_ms: 600,
+        palette: None,
     }
 }
 
@@ -1261,6 +1263,13 @@ impl CartesianChart {
     /// Entry-animation duration in milliseconds (default 600).
     pub fn animation_ms(mut self, ms: u32) -> Self {
         self.animation_ms = ms;
+        self
+    }
+    /// Override the categorical palette for this chart (cycled per series). Pass
+    /// [`cvd_palette`](crate::cvd_palette)`().to_vec()` for a colorblind-safe ramp, or any
+    /// custom `Vec<Color>`. Per-series `.color(..)` still wins over the palette.
+    pub fn palette(mut self, colors: Vec<Color>) -> Self {
+        self.palette = if colors.is_empty() { None } else { Some(colors) };
         self
     }
     /// Draw horizontal grid lines (default true).
@@ -1485,6 +1494,18 @@ fn apply_category_window(
     }
 }
 
+/// A centered "no data" panel sized to the chart's footprint — shown when a chart is
+/// handed no series/slices or only empty/non-finite values, so a live dashboard renders a
+/// calm empty state instead of a blank or broken plot.
+fn empty_placeholder(width: f64, height: f64, msg: &str) -> AnyWidget {
+    let c = theme().colors;
+    container()
+        .width(width)
+        .height(height)
+        .child(center(text(msg.to_string()).size(13.0).color(c.muted_foreground)))
+        .into_widget()
+}
+
 impl IntoWidget for CartesianChart {
     fn into_widget(self) -> AnyWidget {
         component_props(render_cartesian_chart, self).into_widget()
@@ -1521,7 +1542,23 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
     let reference_lines = chart.reference_lines.clone();
     let reference_bands = chart.reference_bands.clone();
     let data_labels = chart.data_labels;
+    let palette_override = chart.palette.clone();
+    let pal_color = move |i: usize| -> Color {
+        match &palette_override {
+            Some(p) if !p.is_empty() => p[i % p.len()],
+            _ => palette_color(i),
+        }
+    };
     apply_category_window(&mut categories, &mut series, chart.category_window);
+
+    // Empty state: no categories/series, or every value is missing/non-finite. Render a
+    // calm "no data" panel at the chart's footprint rather than a blank or broken plot.
+    let has_data = !categories.is_empty()
+        && !series.is_empty()
+        && series.iter().any(|s| s.values.iter().any(|v| v.is_finite()));
+    if !has_data {
+        return empty_placeholder(width, height, "No data");
+    }
 
     let active = create_signal(None::<ActiveDatum>);
     let active_datum = active.get();
@@ -1564,7 +1601,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
     let all_colors: Vec<Color> = series
         .iter()
         .enumerate()
-        .map(|(i, s)| s.color.unwrap_or(palette_color(i)))
+        .map(|(i, s)| s.color.unwrap_or_else(|| pal_color(i)))
         .collect();
     let visible: Vec<usize> = (0..series.len()).filter(|i| !hidden_set.contains(i)).collect();
     // Visible-only views: everything downstream (scale, draw, hit-test, tooltip) reads
@@ -3340,6 +3377,7 @@ pub struct PieChart {
     on_slice: Option<Rc<dyn Fn(usize, f64)>>,
     animate: bool,
     animation_ms: u32,
+    palette: Option<Vec<Color>>,
 }
 
 /// A **pie chart**.
@@ -3356,6 +3394,7 @@ pub fn pie_chart(slices: Vec<Slice>) -> PieChart {
         on_slice: None,
         animate: true,
         animation_ms: 700,
+        palette: None,
     }
 }
 /// A **donut chart** (pie with a hole).
@@ -3372,6 +3411,7 @@ pub fn donut_chart(slices: Vec<Slice>) -> PieChart {
         on_slice: None,
         animate: true,
         animation_ms: 700,
+        palette: None,
     }
 }
 
@@ -3411,6 +3451,13 @@ impl PieChart {
     /// Run `callback(slice_index, value)` when a slice is tapped.
     pub fn on_slice(mut self, callback: impl Fn(usize, f64) + 'static) -> Self {
         self.on_slice = Some(Rc::new(callback));
+        self
+    }
+    /// Override the categorical palette for this chart (cycled per slice). Pass
+    /// [`cvd_palette`](crate::cvd_palette)`().to_vec()` for a colorblind-safe ramp, or any
+    /// custom `Vec<Color>`. Per-slice `.color(..)` still wins over the palette.
+    pub fn palette(mut self, colors: Vec<Color>) -> Self {
+        self.palette = if colors.is_empty() { None } else { Some(colors) };
         self
     }
     /// Animate the wedges in on mount (a radial sweep). Default true.
@@ -3536,6 +3583,20 @@ fn render_pie_chart(chart: &PieChart) -> AnyWidget {
     let on_slice = chart.on_slice.clone();
     let animate = chart.animate;
     let animation_ms = chart.animation_ms;
+    let palette_override = chart.palette.clone();
+    let pal_color = move |i: usize| -> Color {
+        match &palette_override {
+            Some(p) if !p.is_empty() => p[i % p.len()],
+            _ => palette_color(i),
+        }
+    };
+
+    // Empty state: no slices, or every slice is zero/negative (nothing to draw). Render a
+    // calm "no data" panel at the chart's footprint rather than an empty ring.
+    let has_data = slices.iter().any(|s| s.value.is_finite() && s.value > 0.0);
+    if !has_data {
+        return empty_placeholder(size, size, "No data");
+    }
 
     // Entry animation: a 0→1 progress kicked once on mount; the wedges sweep in radially
     // (each slice's swept angle scales by `anim_t`).
@@ -3559,7 +3620,7 @@ fn render_pie_chart(chart: &PieChart) -> AnyWidget {
     let all_colors: Vec<Color> = slices
         .iter()
         .enumerate()
-        .map(|(i, s)| s.color.unwrap_or(palette_color(i)))
+        .map(|(i, s)| s.color.unwrap_or_else(|| pal_color(i)))
         .collect();
     let visible: Vec<usize> = (0..slices.len())
         .filter(|&i| !hidden_set.contains(&i) && slices[i].value.max(0.0) > 0.0)

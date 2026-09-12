@@ -134,6 +134,22 @@ pub fn palette_color(i: usize) -> Color {
     p[i % p.len()]
 }
 
+/// A colorblind-safe categorical palette (Okabe–Ito, the widely-used CVD-safe ramp —
+/// distinguishable under protanopia/deuteranopia/tritanopia). Pass it to a chart with
+/// `.palette(cvd_palette().to_vec())`.
+pub fn cvd_palette() -> [Color; 7] {
+    let c = |r, g, b| Color::from_rgba8(r, g, b, 0xFF);
+    [
+        c(0x00, 0x72, 0xB2), // blue
+        c(0xE6, 0x9F, 0x00), // orange
+        c(0x00, 0x9E, 0x73), // bluish green
+        c(0xCC, 0x79, 0xA7), // reddish purple
+        c(0x56, 0xB4, 0xE9), // sky blue
+        c(0xD5, 0x5E, 0x00), // vermillion
+        c(0xF0, 0xE4, 0x42), // yellow
+    ]
+}
+
 pub(crate) fn with_alpha(c: Color, a: f32) -> Color {
     let [r, g, b, _] = c.components;
     Color::new([r, g, b, a])
