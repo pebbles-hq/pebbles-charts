@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use pebbles::prelude::*;
 
-use crate::{IntoSeriesValues, Series, Slice, palette_color, with_alpha};
+use crate::{ChartStyle, IntoSeriesValues, Series, Slice, palette_color, with_alpha};
 
 const PLOT_TOP: f64 = 12.0;
 const PLOT_RIGHT: f64 = 10.0;
@@ -737,6 +737,7 @@ fn append_points_path(path: &mut BezPath, pts: &[(usize, f64, f64)], curve: Curv
 
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 fn draw_line_area_series(
     c: &mut Canvas<'_>,
     values: &[f64],
@@ -749,6 +750,9 @@ fn draw_line_area_series(
     cx_of: &dyn Fn(usize) -> f64,
     color: Color,
     active_datum: Option<ActiveDatum>,
+    line_w: f64,
+    point_r: f64,
+    area_a: f32,
 ) {
     let segments = finite_line_segments(values, y_scale, cx_of);
     if segments.is_empty() {
@@ -763,21 +767,21 @@ fn draw_line_area_series(
             fill.close_path();
             if area_gradient {
                 // Series color at the top of the band fading to transparent at the baseline.
-                let grad = Gradient::vertical([with_alpha(color, 0.34), with_alpha(color, 0.0)]);
+                let grad = Gradient::vertical([with_alpha(color, area_a * 1.9), with_alpha(color, 0.0)]);
                 c.fill_path_gradient(&fill, &grad);
             } else {
-                c.fill_path(&fill, with_alpha(color, 0.18));
+                c.fill_path(&fill, with_alpha(color, area_a));
             }
         }
 
         let mut line = BezPath::new();
         line.move_to((pts[0].1, pts[0].2));
         append_points_path(&mut line, &pts[1..], curve);
-        c.stroke_path(&line, 2.0, color);
+        c.stroke_path(&line, line_w, color);
         for &(i, x, y) in &pts {
             let active =
                 active_datum.is_some_and(|a| a.category == i && a.series == Some(series_index));
-            c.fill_circle(Offset::new(x, y), if active { 4.5 } else { 2.6 }, color);
+            c.fill_circle(Offset::new(x, y), if active { point_r * 1.73 } else { point_r }, color);
         }
     }
 }
@@ -921,6 +925,8 @@ mod tests {
             90.0,
             CategoryLabelMode::Auto,
             Color::BLACK,
+            11.0,
+            &None,
         );
 
         assert_eq!(labels.len(), 3);
@@ -1104,6 +1110,10 @@ pub struct CartesianChart {
     palette: Option<Vec<Color>>,
     area_gradient: bool,
     a11y_label: Option<String>,
+    style: ChartStyle,
+    aspect_ratio: Option<f64>,
+    loading: bool,
+    error: Option<String>,
 }
 
 /// Alias — a bar chart. See [`bar_chart`].
@@ -1164,6 +1174,10 @@ fn cartesian(kind: Kind, categories: Vec<String>, series: Vec<Series>) -> Cartes
         palette: None,
         area_gradient: false,
         a11y_label: None,
+        style: ChartStyle::new(),
+        aspect_ratio: None,
+        loading: false,
+        error: None,
     }
 }
 
@@ -1300,6 +1314,32 @@ impl CartesianChart {
     /// value regardless, so the chart is never a silent blank to assistive tech.
     pub fn a11y_label(mut self, label: impl Into<String>) -> Self {
         self.a11y_label = Some(label.into());
+        self
+    }
+    /// Override the per-slot visual style (grid/zero/reference/label colors, stroke width,
+    /// point radius, area alpha, bar radius, label size + font) — the theme-as-config
+    /// surface. See [`ChartStyle`](crate::ChartStyle). Unset slots keep the theme default.
+    pub fn style(mut self, style: ChartStyle) -> Self {
+        self.style = style;
+        self
+    }
+    /// Lock the chart to an aspect ratio (width ÷ height). When set, the height is derived
+    /// from the width (`height = width / ratio`), so the chart keeps its shape as the width
+    /// changes. Overrides `.height(..)`.
+    pub fn aspect_ratio(mut self, ratio: f64) -> Self {
+        self.aspect_ratio = if ratio > 0.0 { Some(ratio) } else { None };
+        self
+    }
+    /// Show a loading placeholder (a "Loading…" panel at the chart's footprint) instead of
+    /// the plot — for data that hasn't arrived yet. Distinct from the empty state.
+    pub fn loading(mut self, loading: bool) -> Self {
+        self.loading = loading;
+        self
+    }
+    /// Show an error placeholder with `message` instead of the plot — for a failed load.
+    /// Distinct from the empty ("No data") state.
+    pub fn error(mut self, message: impl Into<String>) -> Self {
+        self.error = Some(message.into());
         self
     }
     /// Draw horizontal grid lines (default true).
@@ -1610,7 +1650,15 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
     let mut categories = chart.categories.clone();
     let mut series = chart.series.clone();
     let width = chart.width;
-    let height = chart.height;
+    // Aspect-ratio lock: derive the height from the width so the chart keeps its shape.
+    let height = chart.aspect_ratio.map(|r| width / r).unwrap_or(chart.height);
+    // Loading / error take priority over the plot and over the empty state.
+    if let Some(msg) = &chart.error {
+        return empty_placeholder(width, height, msg);
+    }
+    if chart.loading {
+        return empty_placeholder(width, height, "Loading…");
+    }
     let legend = chart.legend;
     let grid = chart.grid;
     let y_axis = chart.y_axis;
@@ -1788,12 +1836,24 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                 .collect()
         })
         .unwrap_or_default();
-    let grid_c = with_alpha(theme().colors.muted_foreground, 0.16);
-    let zero_c = with_alpha(theme().colors.muted_foreground, 0.34);
-    let reference_c = with_alpha(theme().colors.muted_foreground, 0.56);
+    // Per-slot style (grid/zero/reference/label colors, stroke/point/area/bar geometry,
+    // label typography) — theme defaults unless overridden via `.style(ChartStyle)`.
+    let style = chart.style.clone();
+    let grid_c = style.grid();
+    let zero_c = style.zero_line();
+    let reference_c = style.reference();
     let active_band_c = with_alpha(theme().colors.muted_foreground, 0.07);
     let active_line_c = with_alpha(theme().colors.muted_foreground, 0.38);
-    let label_c = theme().colors.muted_foreground;
+    let label_c = style.label();
+    let line_w = style.line_w();
+    let point_r = style.point_r();
+    let area_a = style.area_a();
+    // Stacked areas overlap, so they default denser (0.32) than a lone area (0.18); an
+    // explicit `.area_alpha` in the style overrides both.
+    let stacked_area_a = style.area_alpha.unwrap_or(0.32);
+    let bar_r_max = style.bar_r();
+    let label_px = style.label_px();
+    let font = style.font_family.clone();
     let left_axis_width = if y_axis {
         Y_AXIS_WIDTH + Y_AXIS_GAP
     } else {
@@ -1907,9 +1967,9 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                         let y = y_scale.map(v);
                         let r =
                             Rect::new(gx + 1.0, y.min(baseline), gx + bw - 1.0, y.max(baseline));
-                        c.fill_rrect(r, (bw / 3.0).min(4.0), draw_colors[si]);
+                        c.fill_rrect(r, (bw / 3.0).min(bar_r_max), draw_colors[si]);
                         if active_datum.is_some_and(|a| a.category == i && a.series == Some(si)) {
-                            c.fill_rrect(r, (bw / 3.0).min(4.0), with_alpha(draw_colors[si], 0.32));
+                            c.fill_rrect(r, (bw / 3.0).min(bar_r_max), with_alpha(draw_colors[si], 0.32));
                         }
                     }
                 }
@@ -1938,9 +1998,9 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                         let y0 = y_scale.map(base);
                         let y1s = y_scale.map(next);
                         let r = Rect::new(x, y0.min(y1s), x + bw, y0.max(y1s));
-                        c.fill_rrect(r, (bw / 3.0).min(4.0), draw_colors[si]);
+                        c.fill_rrect(r, (bw / 3.0).min(bar_r_max), draw_colors[si]);
                         if active_datum.is_some_and(|a| a.category == i && a.series == Some(si)) {
-                            c.fill_rrect(r, (bw / 3.0).min(4.0), with_alpha(draw_colors[si], 0.32));
+                            c.fill_rrect(r, (bw / 3.0).min(bar_r_max), with_alpha(draw_colors[si], 0.32));
                         }
                     }
                 }
@@ -1966,7 +2026,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                             x.max(h_baseline),
                             gy + bh - 1.0,
                         );
-                        c.fill_rrect(r, (bh / 3.0).min(4.0), draw_colors[si]);
+                        c.fill_rrect(r, (bh / 3.0).min(bar_r_max), draw_colors[si]);
                     }
                 }
             }
@@ -2003,7 +2063,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                                 );
                                 c.fill_rrect(
                                     r,
-                                    (bw / 3.0).min(4.0),
+                                    (bw / 3.0).min(bar_r_max),
                                     with_alpha(draw_colors[si], 0.76),
                                 );
                             }
@@ -2025,6 +2085,9 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                                 &cx_of,
                                 draw_colors[si],
                                 active_datum,
+                                line_w,
+                                point_r,
+                                area_a,
                             );
                         }
                     }
@@ -2072,14 +2135,14 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                         ]);
                         c.fill_path_gradient(&fill, &grad);
                     } else {
-                        c.fill_path(&fill, with_alpha(draw_colors[si], 0.32));
+                        c.fill_path(&fill, with_alpha(draw_colors[si], stacked_area_a));
                     }
                     let mut line = BezPath::new();
                     line.move_to(top[0]);
                     for &p in &top[1..] {
                         line.line_to(p);
                     }
-                    c.stroke_path(&line, 2.0, draw_colors[si]);
+                    c.stroke_path(&line, line_w, draw_colors[si]);
                 }
             }
             Kind::Area | Kind::Line | Kind::SteppedLine | Kind::Sparkline => {
@@ -2100,6 +2163,9 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                         &cx_of,
                         draw_colors[si],
                         active_datum,
+                        line_w,
+                        point_r,
+                        area_a,
                     );
                 }
             }
@@ -2123,6 +2189,8 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
             height,
             &format_value,
             label_c,
+            label_px,
+            &font,
         ));
     }
     plot_layers.push(reference_labels(
@@ -2252,6 +2320,8 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                 height,
                 label_c,
                 TextAlign::Right,
+                label_px,
+                &font,
             ));
             axis_row.push(gap_w(Y_AXIS_GAP).into_widget());
         }
@@ -2264,6 +2334,8 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                 height,
                 label_c,
                 TextAlign::Left,
+                label_px,
+                &font,
             ));
         }
         row(axis_row).into_widget()
@@ -2280,6 +2352,8 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
             plot_width,
             right_axis_width,
             label_c,
+            label_px,
+            &font,
         ));
         col.push(gap_h(4.0).into_widget());
     }
@@ -2299,7 +2373,9 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                     &categories,
                     label_span,
                     category_label_mode,
-                    label_c
+                    label_c,
+                    label_px,
+                    &font,
                 ))),
                 gap_w(right_axis_width + PLOT_RIGHT).into_widget(),
             ])
@@ -2311,9 +2387,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                 row(children![
                     gap_w(left_axis_width).into_widget(),
                     expanded(
-                        text(title)
-                            .size(11.5)
-                            .color(label_c)
+                        apply_font(text(title).size(label_px + 0.5).color(label_c), &font)
                             .align(TextAlign::Center)
                     ),
                     gap_w(right_axis_width).into_widget(),
@@ -2395,6 +2469,14 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         .into_widget()
 }
 
+/// Apply the chart's configured font family to a label, if one is set.
+fn apply_font(t: Text, font: &Option<String>) -> Text {
+    match font {
+        Some(f) => t.font_family(f.clone()),
+        None => t,
+    }
+}
+
 fn axis_title_row(
     left: Option<String>,
     right: Option<String>,
@@ -2402,14 +2484,13 @@ fn axis_title_row(
     plot_width: f64,
     right_axis_width: f64,
     color: Color,
+    label_px: f32,
+    font: &Option<String>,
 ) -> AnyWidget {
     row(children![
         sized_box(
             left.map(|title| {
-                text(title)
-                    .size(11.0)
-                    .semibold()
-                    .color(color)
+                apply_font(text(title).size(label_px).semibold().color(color), font)
                     .align(TextAlign::Right)
                     .into_widget()
             })
@@ -2421,10 +2502,7 @@ fn axis_title_row(
         sized_box(
             right
                 .map(|title| {
-                    text(title)
-                        .size(11.0)
-                        .semibold()
-                        .color(color)
+                    apply_font(text(title).size(label_px).semibold().color(color), font)
                         .align(TextAlign::Left)
                         .into_widget()
                 })
@@ -2440,6 +2518,8 @@ fn category_label_widgets(
     width: f64,
     mode: CategoryLabelMode,
     color: Color,
+    label_px: f32,
+    font: &Option<String>,
 ) -> Vec<AnyWidget> {
     let n = categories.len().max(1);
     let slot = width / n as f64;
@@ -2466,7 +2546,8 @@ fn category_label_widgets(
             } else {
                 String::new()
             };
-            expanded(text(label).size(11.0).color(color).align(TextAlign::Center)).into_widget()
+            expanded(apply_font(text(label).size(label_px).color(color), font).align(TextAlign::Center))
+                .into_widget()
         })
         .collect()
 }
@@ -2540,6 +2621,7 @@ fn reference_labels(
         .into_widget()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cartesian_data_labels(
     kind: Kind,
     vals: &[Vec<f64>],
@@ -2548,6 +2630,8 @@ fn cartesian_data_labels(
     height: f64,
     format_value: &Rc<dyn Fn(f64) -> String>,
     color: Color,
+    label_px: f32,
+    font: &Option<String>,
 ) -> AnyWidget {
     let bottom = (height - PLOT_BOTTOM).max(PLOT_TOP + 1.0);
     let scale = axis.scale(PLOT_TOP, bottom);
@@ -2594,11 +2678,11 @@ fn cartesian_data_labels(
             items.push(
                 positioned(
                     sized_box(
-                        text(format_value(v))
-                            .size(10.0)
-                            .semibold()
-                            .color(color)
-                            .align(align),
+                        apply_font(
+                            text(format_value(v)).size((label_px - 1.0).max(6.0)).semibold().color(color),
+                            font,
+                        )
+                        .align(align),
                     )
                     .width(label_w)
                     .height(label_h),
@@ -2621,6 +2705,8 @@ fn y_axis_labels(
     height: f64,
     color: Color,
     align: TextAlign,
+    label_px: f32,
+    font: &Option<String>,
 ) -> AnyWidget {
     let bottom = (height - PLOT_BOTTOM).max(PLOT_TOP + 1.0);
     let scale = axis.scale(PLOT_TOP, bottom);
@@ -2628,7 +2714,7 @@ fn y_axis_labels(
     for (&tick, label) in axis.ticks.iter().zip(labels.into_iter()) {
         let y = scale.map(tick);
         items.push(
-            positioned(text(label).size(11.0).color(color).align(align))
+            positioned(apply_font(text(label).size(label_px).color(color), font).align(align))
                 .left(0.0)
                 .right(0.0)
                 .top((y - 7.0).clamp(0.0, height - 14.0))
@@ -3545,6 +3631,9 @@ pub struct PieChart {
     animation_ms: u32,
     palette: Option<Vec<Color>>,
     a11y_label: Option<String>,
+    style: ChartStyle,
+    loading: bool,
+    error: Option<String>,
 }
 
 /// A **pie chart**.
@@ -3563,6 +3652,9 @@ pub fn pie_chart(slices: Vec<Slice>) -> PieChart {
         animation_ms: 700,
         palette: None,
         a11y_label: None,
+        style: ChartStyle::new(),
+        loading: false,
+        error: None,
     }
 }
 /// A **donut chart** (pie with a hole).
@@ -3581,6 +3673,9 @@ pub fn donut_chart(slices: Vec<Slice>) -> PieChart {
         animation_ms: 700,
         palette: None,
         a11y_label: None,
+        style: ChartStyle::new(),
+        loading: false,
+        error: None,
     }
 }
 
@@ -3646,6 +3741,22 @@ impl PieChart {
     /// values + percentages are always read out as the node's value.
     pub fn a11y_label(mut self, label: impl Into<String>) -> Self {
         self.a11y_label = Some(label.into());
+        self
+    }
+    /// Override the per-slot visual style (label color/size/font, grid + track colors) — the
+    /// theme-as-config surface. See [`ChartStyle`](crate::ChartStyle).
+    pub fn style(mut self, style: ChartStyle) -> Self {
+        self.style = style;
+        self
+    }
+    /// Show a loading placeholder instead of the ring — for data that hasn't arrived yet.
+    pub fn loading(mut self, loading: bool) -> Self {
+        self.loading = loading;
+        self
+    }
+    /// Show an error placeholder with `message` instead of the ring — for a failed load.
+    pub fn error(mut self, message: impl Into<String>) -> Self {
+        self.error = Some(message.into());
         self
     }
 }
@@ -3782,6 +3893,13 @@ fn show_pie_tooltip(global: Offset, label: &str, color: Color, value_str: String
 fn render_pie_chart(chart: &PieChart) -> AnyWidget {
     let slices = chart.slices.clone();
     let size = chart.size;
+    // Loading / error take priority over the ring and the empty state.
+    if let Some(msg) = &chart.error {
+        return empty_placeholder(size, size, msg);
+    }
+    if chart.loading {
+        return empty_placeholder(size, size, "Loading…");
+    }
     let hole = chart.hole;
     let legend = chart.legend;
     let data_labels = chart.data_labels;
@@ -3939,7 +4057,16 @@ fn render_pie_chart(chart: &PieChart) -> AnyWidget {
     let plot = if data_labels && anim_t >= 0.999 && data_t_val >= 0.999 {
         sized_box(stack(children![
             plot.into_widget(),
-            pie_data_labels(&label_slices, &label_values, &label_colors, total, size, hole)
+            pie_data_labels(
+                &label_slices,
+                &label_values,
+                &label_colors,
+                total,
+                size,
+                hole,
+                chart.style.label_px(),
+                &chart.style.font_family,
+            )
         ]))
         .width(size)
         .height(size)
@@ -4083,6 +4210,7 @@ fn contrast_on(fill: Color) -> Color {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn pie_data_labels(
     slices: &[Slice],
     values: &[f64],
@@ -4090,6 +4218,8 @@ fn pie_data_labels(
     total: f64,
     size: f64,
     hole: f64,
+    label_px: f32,
+    font: &Option<String>,
 ) -> AnyWidget {
     let r = size / 2.0 - 6.0;
     let label_r = r * if hole > 0.0 { (1.0 + hole) / 2.0 } else { 0.6 };
@@ -4129,10 +4259,7 @@ fn pie_data_labels(
         items.push(
             positioned(
                 sized_box(
-                    text(label)
-                        .size(10.5)
-                        .semibold()
-                        .color(color)
+                    apply_font(text(label).size((label_px - 0.5).max(6.0)).semibold().color(color), font)
                         .align(TextAlign::Center),
                 )
                 .width(w)

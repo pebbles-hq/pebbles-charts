@@ -198,6 +198,20 @@ semantics tree. Charts are also keyboard-focusable with ←/→ category travers
 - **Legend** is generated from series/slice labels; hide with `.legend(false)`, move it
   with `.legend_position(..)`, show per-entry totals/percentages with `.legend_values(true)`,
   and it's interactive by default (click to toggle a series/slice).
+- **Per-slot style** — pass a [`ChartStyle`] with `.style(..)` to override any slot beyond
+  the palette (theme-as-config); unset slots keep the theme default:
+  ```rust
+  chart.style(
+      ChartStyle::new()
+          .grid_color(color).zero_line_color(color).reference_color(color).label_color(color)
+          .line_width(3.0).point_radius(4.0).area_alpha(0.25).bar_radius(2.0)
+          .label_size(13.0).font_family("Inter"),
+  )
+  ```
+- **Aspect ratio** — `.aspect_ratio(16.0/9.0)` on cartesian charts derives the height from
+  the width (pie/donut are square by construction).
+- **States** — a chart renders a distinct centered panel for each of: empty (auto, on
+  no/zero/non-finite data → "No data"), `.loading(true)` ("Loading…"), and `.error(msg)`.
 - **Gradient area fills** — `.area_gradient(true)` fills area / stacked-area series with a
   vertical gradient (series color fading to transparent at the baseline) instead of a flat
   translucent fill.
