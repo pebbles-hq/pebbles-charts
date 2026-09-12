@@ -6,18 +6,21 @@
 
 use pebbles::prelude::*;
 use pebbles_charts::{
-    area_chart, bar_chart, bubble_chart, bubble_point, candle, candlestick_chart, combo_chart,
-    combo_series, donut_chart, funnel_chart, gauge_chart, heat_cell, heatmap_chart,
-    horizontal_bar_chart, line_chart, percent_stacked_area_chart, percent_stacked_bar_chart,
-    pie_chart, point, point_series, progress_ring, radar_chart, sankey_chart, sankey_link,
-    scatter_chart, series, series_with_gaps, slice, sparkline, stacked_area_chart,
-    stacked_bar_chart, stepped_line_chart, CategoryLabelMode, CurveInterpolation, SeriesKind,
+    CategoryLabelMode, CurveInterpolation, SeriesKind, area_chart, bar_chart, bubble_chart,
+    bubble_point, candle, candlestick_chart, combo_chart, combo_series, donut_chart, funnel_chart,
+    gauge_chart, heat_cell, heatmap_chart, horizontal_bar_chart, line_chart,
+    percent_stacked_area_chart, percent_stacked_bar_chart, pie_chart, point, point_series,
+    progress_ring, radar_chart, sankey_chart, sankey_link, scatter_chart, series, series_with_gaps,
+    slice, sparkline, stacked_area_chart, stacked_bar_chart, stepped_line_chart,
 };
 
 mod capture;
 
 fn months() -> Vec<String> {
-    ["Jan", "Feb", "Mar", "Apr", "May", "Jun"].iter().map(|s| s.to_string()).collect()
+    ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
 }
 
 fn card(title: &str, sub: &str, chart: impl IntoWidget) -> impl IntoWidget {
@@ -33,7 +36,10 @@ fn card(title: &str, sub: &str, chart: impl IntoWidget) -> impl IntoWidget {
         .padding(EdgeInsets::all(20.0))
         .child(
             column(children![
-                text(title.to_string()).size(16.0).bold().color(c.foreground),
+                text(title.to_string())
+                    .size(16.0)
+                    .bold()
+                    .color(c.foreground),
                 gap_h(2.0),
                 text(sub.to_string()).size(12.5).color(c.muted_foreground),
                 gap_h(18.0),
@@ -73,7 +79,14 @@ fn app() -> AnyWidget {
             months(),
             vec![series_with_gaps(
                 "Revenue",
-                vec![Some(12.0), Some(19.0), None, Some(27.0), Some(24.0), Some(33.0)],
+                vec![
+                    Some(12.0),
+                    Some(19.0),
+                    None,
+                    Some(27.0),
+                    Some(24.0),
+                    Some(33.0),
+                ],
             )],
         )
         .data_labels(true)
@@ -84,11 +97,17 @@ fn app() -> AnyWidget {
     let area = card(
         "Area Chart",
         "Active users, smooth curve",
-        area_chart(months(), vec![series("Users", vec![320.0, 410.0, 505.0, 480.0, 620.0, 700.0])])
-            .curve(CurveInterpolation::Smooth)
-            .area_gradient(true)
-            .width(460.0)
-            .height(240.0),
+        area_chart(
+            months(),
+            vec![series(
+                "Users",
+                vec![320.0, 410.0, 505.0, 480.0, 620.0, 700.0],
+            )],
+        )
+        .curve(CurveInterpolation::Smooth)
+        .area_gradient(true)
+        .width(460.0)
+        .height(240.0),
     );
 
     let stacked_bar = card(
@@ -125,7 +144,13 @@ fn app() -> AnyWidget {
         "Horizontal Bar",
         "Top pipeline stages",
         horizontal_bar_chart(
-            vec!["Lead".into(), "Qualified".into(), "Proposal".into(), "Won".into(), "Lost".into()],
+            vec![
+                "Lead".into(),
+                "Qualified".into(),
+                "Proposal".into(),
+                "Won".into(),
+                "Lost".into(),
+            ],
             vec![series("Deals", vec![128.0, 96.0, 54.0, 32.0, 20.0])],
         )
         .top_n(4)
@@ -137,9 +162,12 @@ fn app() -> AnyWidget {
     let stepped = card(
         "Stepped Line",
         "Capacity plan",
-        stepped_line_chart(months(), vec![series("Capacity", vec![12.0, 12.0, 18.0, 18.0, 24.0, 30.0])])
-            .width(460.0)
-            .height(240.0),
+        stepped_line_chart(
+            months(),
+            vec![series("Capacity", vec![12.0, 12.0, 18.0, 18.0, 24.0, 30.0])],
+        )
+        .width(460.0)
+        .height(240.0),
     );
 
     let stacked_area = card(
@@ -177,8 +205,16 @@ fn app() -> AnyWidget {
         combo_chart(
             months(),
             vec![
-                combo_series("Bookings", vec![32.0, 46.0, 40.0, 62.0, 70.0, 82.0], SeriesKind::Bar),
-                combo_series("Conversion", vec![8.0, 11.0, 10.0, 14.0, 15.0, 17.0], SeriesKind::Line),
+                combo_series(
+                    "Bookings",
+                    vec![32.0, 46.0, 40.0, 62.0, 70.0, 82.0],
+                    SeriesKind::Bar,
+                ),
+                combo_series(
+                    "Conversion",
+                    vec![8.0, 11.0, 10.0, 14.0, 15.0, 17.0],
+                    SeriesKind::Line,
+                ),
             ],
         )
         .right_y_axis(0.0, 20.0)
@@ -210,7 +246,13 @@ fn app() -> AnyWidget {
         "Scores by effort",
         scatter_chart(vec![point_series(
             "Teams",
-            vec![point(1.0, 2.0), point(2.0, 5.0), point(3.0, 4.0), point(4.0, 8.0), point(5.0, 7.0)],
+            vec![
+                point(1.0, 2.0),
+                point(2.0, 5.0),
+                point(3.0, 4.0),
+                point(4.0, 8.0),
+                point(5.0, 7.0),
+            ],
         )])
         .width(460.0)
         .height(240.0),
@@ -220,7 +262,13 @@ fn app() -> AnyWidget {
         "Radar Chart",
         "Team capability",
         radar_chart(
-            vec!["Speed".into(), "Quality".into(), "Cost".into(), "Coverage".into(), "Risk".into()],
+            vec![
+                "Speed".into(),
+                "Quality".into(),
+                "Cost".into(),
+                "Coverage".into(),
+                "Risk".into(),
+            ],
             vec![
                 series("Current", vec![72.0, 84.0, 58.0, 76.0, 64.0]),
                 series("Target", vec![86.0, 90.0, 70.0, 88.0, 72.0]),
@@ -229,14 +277,28 @@ fn app() -> AnyWidget {
         .size(240.0),
     );
 
-    let radial = card("Progress Ring", "Rollout completion", progress_ring("Complete", 78.0, 100.0).size(180.0));
-    let gauge = card("Gauge", "Resource pressure", gauge_chart("Pressure", 64.0, 100.0).size(180.0));
+    let radial = card(
+        "Progress Ring",
+        "Rollout completion",
+        progress_ring("Complete", 78.0, 100.0).size(180.0),
+    );
+    let gauge = card(
+        "Gauge",
+        "Resource pressure",
+        gauge_chart("Pressure", 64.0, 100.0).size(180.0),
+    );
 
     let candles = card(
         "Candlestick",
         "Daily price movement",
         candlestick_chart(
-            vec!["Mon".into(), "Tue".into(), "Wed".into(), "Thu".into(), "Fri".into()],
+            vec![
+                "Mon".into(),
+                "Tue".into(),
+                "Wed".into(),
+                "Thu".into(),
+                "Fri".into(),
+            ],
             vec![
                 candle(32.0, 38.0, 29.0, 36.0),
                 candle(36.0, 40.0, 33.0, 34.0),
@@ -277,9 +339,14 @@ fn app() -> AnyWidget {
     let funnel = card(
         "Funnel",
         "Activation journey",
-        funnel_chart(vec![slice("Visits", 100.0), slice("Signup", 64.0), slice("Setup", 42.0), slice("Active", 28.0)])
-            .width(360.0)
-            .height(240.0),
+        funnel_chart(vec![
+            slice("Visits", 100.0),
+            slice("Signup", 64.0),
+            slice("Setup", 42.0),
+            slice("Active", 28.0),
+        ])
+        .width(360.0)
+        .height(240.0),
     );
 
     let sankey = card(
@@ -294,7 +361,11 @@ fn app() -> AnyWidget {
         .height(220.0),
     );
 
-    let mini = card("Sparkline", "Last 24 hours", sparkline(vec![8.0, 12.0, 9.0, 16.0, 14.0, 22.0, 18.0]).width(460.0));
+    let mini = card(
+        "Sparkline",
+        "Last 24 hours",
+        sparkline(vec![8.0, 12.0, 9.0, 16.0, 14.0, 22.0, 18.0]).width(460.0),
+    );
 
     let pie = card(
         "Pie Chart",
@@ -313,8 +384,13 @@ fn app() -> AnyWidget {
     let donut = card(
         "Donut Chart",
         "Storage used",
-        donut_chart(vec![slice("Docs", 42.0), slice("Media", 28.0), slice("Apps", 18.0), slice("Free", 12.0)])
-            .size(240.0),
+        donut_chart(vec![
+            slice("Docs", 42.0),
+            slice("Media", 28.0),
+            slice("Apps", 18.0),
+            slice("Free", 12.0),
+        ])
+        .size(240.0),
     );
 
     container()
@@ -367,5 +443,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(spec) = std::env::var("SHOT") {
         return capture::shot(&spec, app, theme().colors.background);
     }
-    App::new(component(app)).title("Pebbles Charts").size(1180, 900).background(theme().colors.background).run()
+    App::new(component(app))
+        .title("Pebbles Charts")
+        .size(1180, 900)
+        .background(theme().colors.background)
+        .run()
 }

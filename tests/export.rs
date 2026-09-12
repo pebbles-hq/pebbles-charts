@@ -24,5 +24,9 @@ fn chart_exports_to_png() {
         .expect("capture chart to png");
     // Valid PNG signature + non-trivial payload.
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n", "PNG header");
-    assert!(png.len() > 1000, "encoded PNG has real content ({} bytes)", png.len());
+    assert!(
+        png.len() > 1000,
+        "encoded PNG has real content ({} bytes)",
+        png.len()
+    );
 }
