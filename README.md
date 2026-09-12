@@ -172,6 +172,15 @@ minimize motion (`prefers-reduced-motion` on web, the desktop equivalent otherwi
 charts render statically by default. Force it either way with `.animate(true|false)`, and
 tune the duration with `.animation_ms(n)` (default 600, pie 700).
 
+## Accessibility
+
+Every chart emits an accessibility node so a screen reader announces it instead of hitting
+an opaque canvas: a **role** (image/figure), a spoken **summary** (chart type + shape, or
+your `.a11y_label("…")`), and — as the node's value — a full **data read-out** of every
+point (`"Desktop: Jan 10, Feb 20, Mar 30; Mobile: …"`) or slice (`"Chrome 62 (62%), …"`).
+That's the data-table fallback, fed to the platform assistive tech through Pebbles'
+semantics tree. Charts are also keyboard-focusable with ←/→ category traversal.
+
 ## Theming
 
 - **Chrome** (grid lines, axis labels) follows the app's `theme()`, so charts match

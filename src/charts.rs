@@ -1103,6 +1103,7 @@ pub struct CartesianChart {
     animation_ms: u32,
     palette: Option<Vec<Color>>,
     area_gradient: bool,
+    a11y_label: Option<String>,
 }
 
 /// Alias — a bar chart. See [`bar_chart`].
@@ -1162,6 +1163,7 @@ fn cartesian(kind: Kind, categories: Vec<String>, series: Vec<Series>) -> Cartes
         animation_ms: 600,
         palette: None,
         area_gradient: false,
+        a11y_label: None,
     }
 }
 
@@ -1290,6 +1292,14 @@ impl CartesianChart {
     /// No effect on non-area charts. Default off.
     pub fn area_gradient(mut self, on: bool) -> Self {
         self.area_gradient = on;
+        self
+    }
+    /// Set the accessible summary a screen reader announces for this chart (e.g.
+    /// "Monthly revenue by channel"). If unset, a summary is generated from the chart
+    /// type, series, and categories. The per-point data is always read out as the node's
+    /// value regardless, so the chart is never a silent blank to assistive tech.
+    pub fn a11y_label(mut self, label: impl Into<String>) -> Self {
+        self.a11y_label = Some(label.into());
         self
     }
     /// Draw horizontal grid lines (default true).
@@ -1526,9 +1536,72 @@ fn empty_placeholder(width: f64, height: f64, msg: &str) -> AnyWidget {
         .into_widget()
 }
 
+/// A screen-reader name for a cartesian chart kind.
+fn cartesian_kind_name(kind: Kind) -> &'static str {
+    match kind {
+        Kind::Bar => "Bar",
+        Kind::StackedBar => "Stacked bar",
+        Kind::PercentStackedBar => "100% stacked bar",
+        Kind::HorizontalBar => "Horizontal bar",
+        Kind::Line => "Line",
+        Kind::SteppedLine => "Stepped line",
+        Kind::Area => "Area",
+        Kind::StackedArea => "Stacked area",
+        Kind::PercentStackedArea => "100% stacked area",
+        Kind::Combo => "Combo",
+        Kind::Sparkline => "Sparkline",
+    }
+}
+
+/// Build the accessibility (role/label/value) for a cartesian chart: a spoken summary plus
+/// a per-point data read-out, so a screen reader announces the chart AND its data rather
+/// than hitting an opaque canvas. This is the chart's data-table fallback.
+fn cartesian_a11y(chart: &CartesianChart) -> (String, String) {
+    let kind = cartesian_kind_name(chart.kind);
+    let ncat = chart.categories.len();
+    let nser = chart.series.len();
+    let label = chart.a11y_label.clone().unwrap_or_else(|| {
+        let mut s = format!("{kind} chart");
+        match (nser, ncat) {
+            (0, _) | (_, 0) => {}
+            (1, _) => s.push_str(&format!(", {ncat} points")),
+            _ => s.push_str(&format!(", {nser} series over {ncat} categories")),
+        }
+        if let Some(t) = &chart.x_axis_title {
+            s.push_str(&format!(", x axis {t}"));
+        }
+        if let Some(t) = &chart.y_axis_title {
+            s.push_str(&format!(", y axis {t}"));
+        }
+        s
+    });
+    let fmt: Rc<dyn Fn(f64) -> String> =
+        chart.value_formatter.clone().unwrap_or_else(|| Rc::new(compact_number));
+    let mut parts: Vec<String> = Vec::new();
+    for s in &chart.series {
+        let points: Vec<String> = chart
+            .categories
+            .iter()
+            .zip(&s.values)
+            .filter(|(_, v)| v.is_finite())
+            .map(|(cat, v)| format!("{cat} {}", fmt(*v)))
+            .collect();
+        if points.is_empty() {
+            continue;
+        }
+        parts.push(format!("{}: {}", s.label, points.join(", ")));
+    }
+    let value = if parts.is_empty() { "No data".to_string() } else { parts.join("; ") };
+    (label, value)
+}
+
 impl IntoWidget for CartesianChart {
     fn into_widget(self) -> AnyWidget {
-        component_props(render_cartesian_chart, self).into_widget()
+        // Emit an accessibility node (role + summary + data read-out) around the canvas, so
+        // the chart isn't a silent blank to a screen reader. See `cartesian_a11y`.
+        let (label, value) = cartesian_a11y(&self);
+        let chart = component_props(render_cartesian_chart, self);
+        semantics(SemanticsRole::Image, label, chart).value(value).into_widget()
     }
 }
 
@@ -3471,6 +3544,7 @@ pub struct PieChart {
     animate: Option<bool>,
     animation_ms: u32,
     palette: Option<Vec<Color>>,
+    a11y_label: Option<String>,
 }
 
 /// A **pie chart**.
@@ -3488,6 +3562,7 @@ pub fn pie_chart(slices: Vec<Slice>) -> PieChart {
         animate: None,
         animation_ms: 700,
         palette: None,
+        a11y_label: None,
     }
 }
 /// A **donut chart** (pie with a hole).
@@ -3505,6 +3580,7 @@ pub fn donut_chart(slices: Vec<Slice>) -> PieChart {
         animate: None,
         animation_ms: 700,
         palette: None,
+        a11y_label: None,
     }
 }
 
@@ -3565,12 +3641,49 @@ impl PieChart {
         self.animation_ms = ms;
         self
     }
+    /// Set the accessible summary a screen reader announces (e.g. "Traffic by browser").
+    /// If unset, a summary is generated from the chart type and slice count. The per-slice
+    /// values + percentages are always read out as the node's value.
+    pub fn a11y_label(mut self, label: impl Into<String>) -> Self {
+        self.a11y_label = Some(label.into());
+        self
+    }
+}
+
+/// Build the accessibility (role/label/value) for a pie/donut: a spoken summary plus a
+/// per-slice value + percentage read-out — the chart's data-table fallback for a screen
+/// reader.
+fn pie_a11y(chart: &PieChart) -> (String, String) {
+    let kind = if chart.hole > 0.0 { "Donut" } else { "Pie" };
+    let total = chart
+        .slices
+        .iter()
+        .map(|s| s.value.max(0.0))
+        .filter(|v| v.is_finite())
+        .sum::<f64>()
+        .max(f64::MIN_POSITIVE);
+    let label = chart
+        .a11y_label
+        .clone()
+        .unwrap_or_else(|| format!("{kind} chart, {} slices", chart.slices.len()));
+    let parts: Vec<String> = chart
+        .slices
+        .iter()
+        .filter(|s| s.value.is_finite() && s.value > 0.0)
+        .map(|s| format!("{} {} ({:.0}%)", s.label, compact_number(s.value), s.value / total * 100.0))
+        .collect();
+    let value = if parts.is_empty() { "No data".to_string() } else { parts.join(", ") };
+    (label, value)
 }
 
 impl IntoWidget for PieChart {
     fn into_widget(self) -> AnyWidget {
+        // Emit an accessibility node (role + summary + per-slice read-out) around the
+        // canvas so the chart is legible to a screen reader. See `pie_a11y`.
+        let (label, value) = pie_a11y(&self);
         // A component so the legend's toggle `create_signal` gets its own scope.
-        component_props(render_pie_chart, self).into_widget()
+        let chart = component_props(render_pie_chart, self);
+        semantics(SemanticsRole::Image, label, chart).value(value).into_widget()
     }
 }
 
