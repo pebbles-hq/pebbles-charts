@@ -1571,6 +1571,54 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
     }
     let anim_t = if animate { anim.get() } else { 1.0 };
+    // Data-change tween: when the values change on a later render (same shape), morph the
+    // marks from the previous values to the new ones instead of snapping. Snapshots are
+    // kept by ORIGINAL series index (the full set) so a legend toggle — which only changes
+    // the *visible* subset — never reads as a data change. Same one-shot idiom as the entry
+    // kick: signal writes during render, guarded by `peek()`.
+    let full_target: Vec<Vec<f64>> = series.iter().map(|s| s.values.clone()).collect();
+    let data_t = create_signal(1.0_f64);
+    let last_full = create_signal(None::<Vec<Vec<f64>>>);
+    let from_full = create_signal(Vec::<Vec<f64>>::new());
+    {
+        let prev = last_full.peek();
+        let same_shape = prev.as_ref().is_some_and(|p| {
+            p.len() == full_target.len()
+                && p.iter().zip(&full_target).all(|(a, b)| a.len() == b.len())
+        });
+        let changed = prev.as_ref().is_some_and(|p| p != &full_target);
+        if changed && same_shape && animate {
+            // Same shape, new values → morph each datum from its old value to the new one.
+            from_full.set(prev.clone().unwrap());
+            data_t.set(0.0);
+            pebbles::core::animation::animate_to(data_t, 1.0, animation_ms as f64 / 1000.0);
+        } else if prev.is_none() {
+            // First mount → no morph (the entry wipe handles the reveal).
+            from_full.set(full_target.clone());
+        } else if changed {
+            // Shape changed (a series entered / left) → re-run the entry wipe as an enter
+            // animation and snap the values (no per-datum morph across a shape change).
+            from_full.set(full_target.clone());
+            data_t.set(1.0);
+            if animate {
+                anim.set(0.0);
+                pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
+            }
+        }
+        last_full.set(Some(full_target.clone()));
+    }
+    let data_t_val = if animate { data_t.get() } else { 1.0 };
+    let morph_from = from_full.peek();
+    // Interpolate a target datum from its held "from" snapshot by the tween progress.
+    // Gaps (NaN) and a settled tween snap straight to the target.
+    let morph = move |orig_series: usize, cat: usize, target: f64| -> f64 {
+        let fv = morph_from.get(orig_series).and_then(|r| r.get(cat)).copied().unwrap_or(target);
+        if data_t_val >= 1.0 || fv.is_nan() || target.is_nan() {
+            target
+        } else {
+            fv + (target - fv) * data_t_val
+        }
+    };
     // Keyboard traversal: the chart is focusable (Tab / click), and Left/Right arrows
     // move the active category, highlighting it + drawing the crosshair. Uses the
     // framework's register_keys (non-editor key routing).
@@ -1617,10 +1665,19 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
             .map(|&i| all_combo_kinds.get(i).copied().unwrap_or(SeriesKind::Line))
             .collect()
     };
-    let draw_vals = vals.clone();
+    // Morphed views for the axis + marks: each visible datum interpolated from its held
+    // snapshot (by original series index) toward the target. `vals` stays the target set,
+    // so hit-testing, tooltips, and data labels always report the real (final) numbers.
+    let anim_vals: Vec<Vec<f64>> = visible
+        .iter()
+        .map(|&oi| {
+            series[oi].values.iter().enumerate().map(|(ci, &tv)| morph(oi, ci, tv)).collect()
+        })
+        .collect();
+    let draw_vals = anim_vals.clone();
     let draw_colors = colors.clone();
     let ncat = categories.len().max(1);
-    let axis_values = axis_values_for_kind(kind, &vals);
+    let axis_values = axis_values_for_kind(kind, &anim_vals);
     let axis = ValueAxis::from_values(&axis_values, y_range, tick_count);
     let ticks = axis.ticks.clone();
     let format_value: Rc<dyn Fn(f64) -> String> =
@@ -1949,7 +2006,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
     let mut plot_layers = vec![plot.into_widget()];
     // Hold data labels until the entry wipe finishes, so they don't float over
     // not-yet-revealed marks.
-    if data_labels && anim_t >= 0.999 {
+    if data_labels && anim_t >= 0.999 && data_t_val >= 0.999 {
         plot_layers.push(cartesian_data_labels(
             kind,
             &vals,
@@ -3627,13 +3684,55 @@ fn render_pie_chart(chart: &PieChart) -> AnyWidget {
         .collect();
     let vis_slices: Vec<Slice> = visible.iter().map(|&i| slices[i].clone()).collect();
     let vis_colors: Vec<Color> = visible.iter().map(|&i| all_colors[i]).collect();
-    let values: Vec<f64> = vis_slices.iter().map(|s| s.value.max(0.0)).collect();
+
+    // Data-change tween: when the slice values change on a later render (same slice count),
+    // morph each wedge from its previous value to the new one so the ring re-proportions
+    // smoothly. Snapshots are kept by ORIGINAL slice index so a legend toggle (which only
+    // changes the *visible* set) never reads as a data change. Same one-shot idiom as the
+    // entry sweep. Labels + hit-testing always read the target values.
+    let full_target: Vec<f64> = slices.iter().map(|s| s.value.max(0.0)).collect();
+    let data_t = create_signal(1.0_f64);
+    let last_full = create_signal(None::<Vec<f64>>);
+    let from_full = create_signal(Vec::<f64>::new());
+    {
+        let prev = last_full.peek();
+        let same_shape = prev.as_ref().is_some_and(|p| p.len() == full_target.len());
+        let changed = prev.as_ref().is_some_and(|p| p != &full_target);
+        if changed && same_shape && animate {
+            from_full.set(prev.clone().unwrap());
+            data_t.set(0.0);
+            pebbles::core::animation::animate_to(data_t, 1.0, animation_ms as f64 / 1000.0);
+        } else if prev.is_none() {
+            from_full.set(full_target.clone());
+        } else if changed {
+            from_full.set(full_target.clone());
+            data_t.set(1.0);
+            if animate {
+                anim.set(0.0);
+                pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
+            }
+        }
+        last_full.set(Some(full_target.clone()));
+    }
+    let data_t_val = if animate { data_t.get() } else { 1.0 };
+    let morph_from = from_full.peek();
+
+    let target_values: Vec<f64> = visible.iter().map(|&oi| full_target[oi]).collect();
+    // Morphed values drive the drawn wedges + total; labels/hit-tests use the target set.
+    let values: Vec<f64> = visible
+        .iter()
+        .map(|&oi| {
+            let tv = full_target[oi];
+            let fv = morph_from.get(oi).copied().unwrap_or(tv);
+            if data_t_val >= 1.0 { tv } else { fv + (tv - fv) * data_t_val }
+        })
+        .collect();
     let draw_colors = vis_colors.clone();
     let total = values.iter().sum::<f64>().max(f64::MIN_POSITIVE);
-    let label_values = values.clone();
+    let label_values = target_values.clone();
     let label_slices = vis_slices.clone();
     let label_colors = vis_colors.clone();
-    let hit_values = values.clone();
+    let hit_values = target_values.clone();
 
     let plot = canvas(move |c: &mut Canvas<'_>| {
         let s = c.size();
@@ -3686,7 +3785,7 @@ fn render_pie_chart(chart: &PieChart) -> AnyWidget {
     .height(size);
 
     // Hold slice labels until the sweep finishes (they're placed by full mid-angle).
-    let plot = if data_labels && anim_t >= 0.999 {
+    let plot = if data_labels && anim_t >= 0.999 && data_t_val >= 0.999 {
         sized_box(stack(children![
             plot.into_widget(),
             pie_data_labels(&label_slices, &label_values, &label_colors, total, size, hole)

@@ -162,9 +162,13 @@ baseline.
 ## Animation
 
 Charts animate their marks in on mount — cartesian marks **wipe in left-to-right** (grid,
-axes and reference lines stay put) and pie/donut wedges **sweep in radially**. Control it
-with `.animate(bool)` (default on — set false to honor a reduced-motion preference) and
-`.animation_ms(n)` (default 600, pie 700).
+axes and reference lines stay put) and pie/donut wedges **sweep in radially**. When the
+**data changes** on a re-render, the marks **tween** from the old values to the new ones
+(cartesian bars/lines/area and the y-axis morph together; pie/donut wedges re-proportion)
+rather than snapping — hovering, tooltips, and data labels always report the real target
+values. Adding or removing a series/slice re-runs the reveal as an enter animation.
+Control it with `.animate(bool)` (default on — set false to honor a reduced-motion
+preference) and `.animation_ms(n)` (default 600, pie 700).
 
 ## Theming
 
@@ -194,9 +198,10 @@ SHOT=1180:1600:/tmp/charts.rgba cargo run -p demo
 
 ## Roadmap
 
-- Data-change tweens (values morph on update) and series enter/exit.
 - Responsive fill-parent sizing.
 - A per-slot `ChartStyle` (fonts, strokes, tick counts) beyond the palette.
+- Per-series fade-out on removal, and automatic `prefers-reduced-motion` (both pending
+  framework support).
 
 ## License
 
