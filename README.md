@@ -214,6 +214,9 @@ semantics tree. Charts are also keyboard-focusable with ←/→ category travers
           .label_size(13.0).font_family("Inter"),
   )
   ```
+- **Responsive** — `.fill_width(true)` sizes the chart to the parent's available width and
+  re-lays out automatically when the container resizes (`.width(..)` is the unbounded
+  fallback); pair with `.aspect_ratio(..)` for the height.
 - **Aspect ratio** — `.aspect_ratio(16.0/9.0)` on cartesian charts derives the height from
   the width (pie/donut are square by construction).
 - **States** — a chart renders a distinct centered panel for each of: empty (auto, on

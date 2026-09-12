@@ -1098,6 +1098,7 @@ mod tests {
 
 /// A bar / line / area chart over labelled categories. Built with [`bar_chart`],
 /// [`line_chart`], or [`area_chart`].
+#[derive(Clone)]
 pub struct CartesianChart {
     kind: Kind,
     categories: Vec<String>,
@@ -1138,6 +1139,7 @@ pub struct CartesianChart {
     aspect_ratio: Option<f64>,
     loading: bool,
     error: Option<String>,
+    fill_width: bool,
 }
 
 /// Alias — a bar chart. See [`bar_chart`].
@@ -1203,6 +1205,7 @@ fn cartesian(kind: Kind, categories: Vec<String>, series: Vec<Series>) -> Cartes
         aspect_ratio: None,
         loading: false,
         error: None,
+        fill_width: false,
     }
 }
 
@@ -1355,6 +1358,14 @@ impl CartesianChart {
     /// changes. Overrides `.height(..)`.
     pub fn aspect_ratio(mut self, ratio: f64) -> Self {
         self.aspect_ratio = if ratio > 0.0 { Some(ratio) } else { None };
+        self
+    }
+    /// Fill the parent's available width instead of using a fixed `.width(..)`, and
+    /// **re-layout automatically** when the container resizes. Pair with `.aspect_ratio(..)`
+    /// to derive the height, or keep `.height(..)` for a fixed height. `.width(..)` becomes
+    /// the fallback when the parent is unbounded.
+    pub fn fill_width(mut self, on: bool) -> Self {
+        self.fill_width = on;
         self
     }
     /// Show a loading placeholder (a "Loading…" panel at the chart's footprint) instead of
@@ -1672,8 +1683,22 @@ impl IntoWidget for CartesianChart {
         // Emit an accessibility node (role + summary + data read-out) around the canvas, so
         // the chart isn't a silent blank to a screen reader. See `cartesian_a11y`.
         let (label, value) = cartesian_a11y(&self);
-        let chart = component_props(render_cartesian_chart, self);
-        semantics(SemanticsRole::Image, label, chart).value(value).into_widget()
+        let inner = if self.fill_width {
+            // Responsive: rebuild at the parent's available width on every layout pass
+            // (auto-resize). Falls back to the fixed `.width` when the parent is unbounded.
+            let chart = self;
+            layout_builder(move |size: Size| {
+                let mut ch = chart.clone();
+                if size.width.is_finite() && size.width > 1.0 {
+                    ch.width = size.width;
+                }
+                component_props(render_cartesian_chart, ch)
+            })
+            .into_widget()
+        } else {
+            component_props(render_cartesian_chart, self).into_widget()
+        };
+        semantics(SemanticsRole::Image, label, inner).value(value).into_widget()
     }
 }
 
