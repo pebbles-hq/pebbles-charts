@@ -230,6 +230,19 @@ semantics tree. Charts are also keyboard-focusable with ←/→ category travers
 - **Reference lines** are drawn **dashed** (the conventional annotation style), distinct
   from the solid data marks.
 
+## Export to PNG
+
+A chart is a widget, so it renders to an image through the framework's offscreen capture —
+handy for reports, sharing, or server-side rendering:
+
+```rust
+use pebbles::shell::capture;
+let png = capture::capture_png(my_chart().into_widget(), 800, 400, palette::WHITE)?;
+std::fs::write("chart.png", png)?;
+```
+
+(Desktop; renders headlessly on an offscreen GPU target with animations settled.)
+
 ## Run the sample
 
 ```sh
