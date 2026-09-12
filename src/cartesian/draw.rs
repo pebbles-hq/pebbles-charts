@@ -4,10 +4,7 @@ use super::*;
 use crate::cartesian::Kind;
 use crate::legend::*;
 use crate::render::*;
-use crate::scale::*;
-use crate::style::*;
 use crate::tooltip::*;
-use pebbles::prelude::*;
 use std::collections::HashSet;
 use std::rc::Rc;
 
@@ -111,33 +108,34 @@ pub(crate) fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         !prev.is_empty() && cur_labels.iter().any(|l| !prev.contains(l))
     };
     last_labels.set(cur_labels);
-    {
-        let prev = last_full.peek();
-        let same_shape = prev.as_ref().is_some_and(|p| {
-            p.len() == full_target.len()
-                && p.iter().zip(&full_target).all(|(a, b)| a.len() == b.len())
-        });
-        let changed = prev.as_ref().is_some_and(|p| p != &full_target);
-        if changed && same_shape && animate {
-            // Same shape, new values → morph each datum from its old value to the new one.
-            from_full.set(prev.clone().unwrap());
-            data_t.set(0.0);
-            pebbles::core::animation::animate_to(data_t, 1.0, animation_ms as f64 / 1000.0);
-        } else if prev.is_none() {
-            // First mount → no morph (the entry wipe handles the reveal).
-            from_full.set(full_target.clone());
-        } else if changed {
-            // Shape changed → snap the values. A series ADD re-runs the entry wipe (enter
-            // animation); a pure REMOVE skips the wipe and fades the gone series out below.
-            from_full.set(full_target.clone());
-            data_t.set(1.0);
-            if animate && series_added {
-                anim.set(0.0);
-                pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
+    match last_full.peek().as_ref() {
+        // First mount → no morph (the entry wipe handles the reveal).
+        None => from_full.set(full_target.clone()),
+        Some(prev) => {
+            let same_shape = prev.len() == full_target.len()
+                && prev
+                    .iter()
+                    .zip(&full_target)
+                    .all(|(a, b)| a.len() == b.len());
+            let changed = prev != &full_target;
+            if changed && same_shape && animate {
+                // Same shape, new values → morph each datum from its old value to the new.
+                from_full.set(prev.clone());
+                data_t.set(0.0);
+                pebbles::core::animation::animate_to(data_t, 1.0, animation_ms as f64 / 1000.0);
+            } else if changed {
+                // Shape changed → snap the values. A series ADD re-runs the entry wipe (enter
+                // animation); a pure REMOVE skips the wipe and fades the gone series out below.
+                from_full.set(full_target.clone());
+                data_t.set(1.0);
+                if animate && series_added {
+                    anim.set(0.0);
+                    pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
+                }
             }
         }
-        last_full.set(Some(full_target.clone()));
     }
+    last_full.set(Some(full_target.clone()));
     let data_t_val = if animate { data_t.get() } else { 1.0 };
     let morph_from = from_full.peek();
     // Interpolate a target datum from its held "from" snapshot by the tween progress.

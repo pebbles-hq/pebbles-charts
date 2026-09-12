@@ -12,6 +12,9 @@ description = "Composable, themeable chart widgets (bar, line, area, pie, donut)
 authors = ["Reyco Seguma"]
 license = "Apache-2.0"
 repository = "https://github.com/pebbles-hq/pebbles-charts"
+readme = "README.md"
+keywords = ["charts", "graph", "visualization", "gui", "pebbles"]
+categories = ["gui", "visualization"]
 
 [dependencies]
 pebbles = { git = "https://github.com/pebbles-hq/pebbles" }

@@ -2,8 +2,6 @@
 
 use super::*;
 use crate::cartesian::Kind;
-use crate::style::*;
-use pebbles::prelude::*;
 
 pub(crate) fn stacked_domain_values(vals: &[Vec<f64>], percent: bool) -> Vec<Vec<f64>> {
     let ncat = vals.iter().map(Vec::len).max().unwrap_or(0);

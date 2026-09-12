@@ -1,4 +1,4 @@
-//! Visual styling: the categorical [`palette`] (+ colorblind-safe [`cvd_palette`]) and the
+//! Visual styling: the categorical [`palette()`] (+ colorblind-safe [`cvd_palette`]) and the
 //! per-slot [`ChartStyle`] a chart can be themed with beyond its colors.
 
 use pebbles::prelude::*;

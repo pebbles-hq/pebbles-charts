@@ -5,7 +5,7 @@
 //! scatter, radar, radial, dense, flow, and sparkline variants — drawn on the GPU canvas
 //! with a config-driven palette, y-axis values, cartesian tooltips, and an auto legend. The
 //! chrome (grid, axis labels) follows the app's `theme()`, so charts match light/dark
-//! for free; series colors come from a [`palette`] you can override per series.
+//! for free; series colors come from a [`palette()`] you can override per series.
 //!
 //! ```ignore
 //! use pebbles::prelude::*;
@@ -32,7 +32,7 @@
 //!   `ScatterPoint`, `Candle`, …) and their constructors.
 //! - [`config`] — the shared enums (`SeriesKind`, `AxisScale`, `CurveInterpolation`,
 //!   `CategoryLabelMode`, `LegendPosition`).
-//! - [`style`] — the [`palette`]/[`cvd_palette`] and the per-slot [`ChartStyle`].
+//! - [`style`] — the [`palette()`]/[`cvd_palette`] and the per-slot [`ChartStyle`].
 //! - [`overlays`] — reference lines/bands and point annotations.
 //! - `scale` / `tooltip` / `legend` / `render` — shared internals (numeric scales +
 //!   formatting, the cursor tooltip, the interactive legend, and small draw helpers).

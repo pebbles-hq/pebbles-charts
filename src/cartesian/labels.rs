@@ -3,8 +3,6 @@
 use super::*;
 use crate::cartesian::Kind;
 use crate::render::*;
-use crate::scale::*;
-use pebbles::prelude::*;
 use std::rc::Rc;
 
 #[allow(clippy::too_many_arguments)]
@@ -122,7 +120,7 @@ pub(crate) fn reference_labels(
                 .width(58.0),
             )
             .right(6.0)
-            .top((y - 15.0).clamp(0.0, height - 16.0))
+            .top((y - 15.0).clamp(0.0, (height - 16.0).max(0.0)))
             .into_widget(),
         );
     }
@@ -145,7 +143,7 @@ pub(crate) fn reference_labels(
                 .width(58.0),
             )
             .right(6.0)
-            .top((y - 7.0).clamp(0.0, height - 16.0))
+            .top((y - 7.0).clamp(0.0, (height - 16.0).max(0.0)))
             .into_widget(),
         );
     }
@@ -230,8 +228,8 @@ pub(crate) fn cartesian_data_labels(
                     .width(label_w)
                     .height(label_h),
                 )
-                .left(x.clamp(0.0, width - label_w))
-                .top(y.clamp(0.0, height - label_h))
+                .left(x.clamp(0.0, (width - label_w).max(0.0)))
+                .top(y.clamp(0.0, (height - label_h).max(0.0)))
                 .into_widget(),
             );
         }
@@ -297,8 +295,8 @@ pub(crate) fn annotation_layer(
                 .width(lw)
                 .height(16.0),
             )
-            .left((cx - lw / 2.0).clamp(0.0, width - lw))
-            .top((cy - dot / 2.0 - 18.0).clamp(0.0, height - 16.0))
+            .left((cx - lw / 2.0).clamp(0.0, (width - lw).max(0.0)))
+            .top((cy - dot / 2.0 - 18.0).clamp(0.0, (height - 16.0).max(0.0)))
             .into_widget(),
         );
     }
@@ -328,7 +326,7 @@ pub(crate) fn y_axis_labels(
             positioned(apply_font(text(label).size(label_px).color(color), font).align(align))
                 .left(0.0)
                 .right(0.0)
-                .top((y - 7.0).clamp(0.0, height - 14.0))
+                .top((y - 7.0).clamp(0.0, (height - 14.0).max(0.0)))
                 .into_widget(),
         );
     }

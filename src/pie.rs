@@ -397,26 +397,26 @@ pub(crate) fn render_pie_chart(chart: &PieChart) -> AnyWidget {
     let data_t = create_signal(1.0_f64);
     let last_full = create_signal(None::<Vec<f64>>);
     let from_full = create_signal(Vec::<f64>::new());
-    {
-        let prev = last_full.peek();
-        let same_shape = prev.as_ref().is_some_and(|p| p.len() == full_target.len());
-        let changed = prev.as_ref().is_some_and(|p| p != &full_target);
-        if changed && same_shape && animate {
-            from_full.set(prev.clone().unwrap());
-            data_t.set(0.0);
-            pebbles::core::animation::animate_to(data_t, 1.0, animation_ms as f64 / 1000.0);
-        } else if prev.is_none() {
-            from_full.set(full_target.clone());
-        } else if changed {
-            from_full.set(full_target.clone());
-            data_t.set(1.0);
-            if animate {
-                anim.set(0.0);
-                pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
+    match last_full.peek().as_ref() {
+        None => from_full.set(full_target.clone()),
+        Some(prev) => {
+            let same_shape = prev.len() == full_target.len();
+            let changed = prev != &full_target;
+            if changed && same_shape && animate {
+                from_full.set(prev.clone());
+                data_t.set(0.0);
+                pebbles::core::animation::animate_to(data_t, 1.0, animation_ms as f64 / 1000.0);
+            } else if changed {
+                from_full.set(full_target.clone());
+                data_t.set(1.0);
+                if animate {
+                    anim.set(0.0);
+                    pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
+                }
             }
         }
-        last_full.set(Some(full_target.clone()));
     }
+    last_full.set(Some(full_target.clone()));
     let data_t_val = if animate { data_t.get() } else { 1.0 };
     let morph_from = from_full.peek();
 
@@ -697,8 +697,8 @@ pub(crate) fn pie_data_labels(
                 .width(w)
                 .height(14.0),
             )
-            .left((cx - w / 2.0).clamp(0.0, size - w))
-            .top((cy - 7.0).clamp(0.0, size - 14.0))
+            .left((cx - w / 2.0).clamp(0.0, (size - w).max(0.0)))
+            .top((cy - 7.0).clamp(0.0, (size - 14.0).max(0.0)))
             .into_widget(),
         );
     }
