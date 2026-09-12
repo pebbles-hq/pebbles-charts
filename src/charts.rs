@@ -1090,6 +1090,8 @@ pub struct CartesianChart {
     data_labels: bool,
     legend_position: LegendPosition,
     legend_values: bool,
+    animate: bool,
+    animation_ms: u32,
 }
 
 /// Alias — a bar chart. See [`bar_chart`].
@@ -1145,6 +1147,8 @@ fn cartesian(kind: Kind, categories: Vec<String>, series: Vec<Series>) -> Cartes
         data_labels: false,
         legend_position: LegendPosition::Bottom,
         legend_values: false,
+        animate: true,
+        animation_ms: 600,
     }
 }
 
@@ -1246,6 +1250,17 @@ impl CartesianChart {
     /// Show each series' total next to its name in the legend.
     pub fn legend_values(mut self, on: bool) -> Self {
         self.legend_values = on;
+        self
+    }
+    /// Animate the marks in on mount (a left-to-right reveal). Default true; set false
+    /// for a static chart or to honor a reduced-motion preference.
+    pub fn animate(mut self, on: bool) -> Self {
+        self.animate = on;
+        self
+    }
+    /// Entry-animation duration in milliseconds (default 600).
+    pub fn animation_ms(mut self, ms: u32) -> Self {
+        self.animation_ms = ms;
         self
     }
     /// Draw horizontal grid lines (default true).
@@ -1496,6 +1511,8 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
     let all_combo_kinds = chart.combo_kinds.clone();
     let legend_position = chart.legend_position;
     let legend_values = chart.legend_values;
+    let animate = chart.animate;
+    let animation_ms = chart.animation_ms;
     let curve = chart.curve;
     let vertical_grid = chart.vertical_grid;
     let x_axis_title = chart.x_axis_title.clone();
@@ -1508,6 +1525,15 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
 
     let active = create_signal(None::<ActiveDatum>);
     let active_datum = active.get();
+    // Entry animation: a 0→1 progress kicked once on mount (the same one-shot idiom the
+    // framework's `animated` hook uses). The draw wipes the marks in left-to-right by `t`.
+    let anim = create_signal(0.0_f64);
+    let anim_kicked = create_signal(false);
+    if animate && !anim_kicked.peek() {
+        anim_kicked.set(true);
+        pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
+    }
+    let anim_t = if animate { anim.get() } else { 1.0 };
     // Keyboard traversal: the chart is focusable (Tab / click), and Left/Right arrows
     // move the active category, highlighting it + drawing the crosshair. Uses the
     // framework's register_keys (non-editor key routing).
@@ -1668,6 +1694,12 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
             c.stroke_line(Offset::new(x, pt), Offset::new(x, y1), 1.0, active_line_c);
         }
 
+        // Entry animation: reveal the marks left-to-right as `anim_t` goes 0→1. Only the
+        // marks are clipped — grid, axes, baseline and reference lines stay static.
+        let wiping = anim_t < 1.0;
+        if wiping {
+            c.push_clip(Rect::new(x0, pt, x0 + pw * anim_t, y1));
+        }
         match kind {
             Kind::Bar => {
                 let nser = draw_vals.len().max(1);
@@ -1870,12 +1902,17 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                 }
             }
         }
+        if wiping {
+            c.pop_clip();
+        }
     })
     .width(plot_width)
     .height(height);
 
     let mut plot_layers = vec![plot.into_widget()];
-    if data_labels {
+    // Hold data labels until the entry wipe finishes, so they don't float over
+    // not-yet-revealed marks.
+    if data_labels && anim_t >= 0.999 {
         plot_layers.push(cartesian_data_labels(
             kind,
             &vals,
@@ -3301,6 +3338,8 @@ pub struct PieChart {
     legend_values: bool,
     tooltip: bool,
     on_slice: Option<Rc<dyn Fn(usize, f64)>>,
+    animate: bool,
+    animation_ms: u32,
 }
 
 /// A **pie chart**.
@@ -3315,6 +3354,8 @@ pub fn pie_chart(slices: Vec<Slice>) -> PieChart {
         legend_values: false,
         tooltip: true,
         on_slice: None,
+        animate: true,
+        animation_ms: 700,
     }
 }
 /// A **donut chart** (pie with a hole).
@@ -3329,6 +3370,8 @@ pub fn donut_chart(slices: Vec<Slice>) -> PieChart {
         legend_values: false,
         tooltip: true,
         on_slice: None,
+        animate: true,
+        animation_ms: 700,
     }
 }
 
@@ -3368,6 +3411,16 @@ impl PieChart {
     /// Run `callback(slice_index, value)` when a slice is tapped.
     pub fn on_slice(mut self, callback: impl Fn(usize, f64) + 'static) -> Self {
         self.on_slice = Some(Rc::new(callback));
+        self
+    }
+    /// Animate the wedges in on mount (a radial sweep). Default true.
+    pub fn animate(mut self, on: bool) -> Self {
+        self.animate = on;
+        self
+    }
+    /// Entry-animation duration in milliseconds (default 700).
+    pub fn animation_ms(mut self, ms: u32) -> Self {
+        self.animation_ms = ms;
         self
     }
 }
@@ -3481,6 +3534,18 @@ fn render_pie_chart(chart: &PieChart) -> AnyWidget {
     let legend_values = chart.legend_values;
     let tooltip = chart.tooltip;
     let on_slice = chart.on_slice.clone();
+    let animate = chart.animate;
+    let animation_ms = chart.animation_ms;
+
+    // Entry animation: a 0→1 progress kicked once on mount; the wedges sweep in radially
+    // (each slice's swept angle scales by `anim_t`).
+    let anim = create_signal(0.0_f64);
+    let anim_kicked = create_signal(false);
+    if animate && !anim_kicked.peek() {
+        anim_kicked.set(true);
+        pebbles::core::animation::animate_to(anim, 1.0, animation_ms as f64 / 1000.0);
+    }
+    let anim_t = if animate { anim.get() } else { 1.0 };
 
     // Slices toggled off from the legend (by original index). Hiding a slice drops it
     // from the pie and the remaining slices re-proportion to fill (total = visible sum),
@@ -3517,7 +3582,8 @@ fn render_pie_chart(chart: &PieChart) -> AnyWidget {
         let ir = r * hole;
         let mut a0 = -std::f64::consts::FRAC_PI_2; // start at 12 o'clock
         for (i, &v) in values.iter().enumerate() {
-            let sweep = v / total * std::f64::consts::TAU;
+            // Entry sweep: scale each wedge's angle by anim_t so the ring unfolds 0→full.
+            let sweep = v / total * std::f64::consts::TAU * anim_t;
             let a1 = a0 + sweep;
             // The active slice pops OUT along its mid-angle for emphasis.
             let mid = a0 + sweep / 2.0;
@@ -3558,7 +3624,8 @@ fn render_pie_chart(chart: &PieChart) -> AnyWidget {
     .width(size)
     .height(size);
 
-    let plot = if data_labels {
+    // Hold slice labels until the sweep finishes (they're placed by full mid-angle).
+    let plot = if data_labels && anim_t >= 0.999 {
         sized_box(stack(children![
             plot.into_widget(),
             pie_data_labels(&label_slices, &label_values, &label_colors, total, size, hole)

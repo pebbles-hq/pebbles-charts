@@ -159,6 +159,13 @@ baseline.
 - **Keyboard** — a chart is focusable (Tab or click); the **←/→** arrows move the active
   category, highlighting it and drawing the crosshair.
 
+## Animation
+
+Charts animate their marks in on mount — cartesian marks **wipe in left-to-right** (grid,
+axes and reference lines stay put) and pie/donut wedges **sweep in radially**. Control it
+with `.animate(bool)` (default on — set false to honor a reduced-motion preference) and
+`.animation_ms(n)` (default 600, pie 700).
+
 ## Theming
 
 - **Chrome** (grid lines, axis labels) follows the app's `theme()`, so charts match
@@ -180,7 +187,7 @@ SHOT=1180:1600:/tmp/charts.rgba cargo run -p demo
 
 ## Roadmap
 
-- Entry animations (grow-in bars, draw-on lines) and data-change tweens.
+- Data-change tweens (values morph on update) and series enter/exit.
 - Responsive fill-parent sizing.
 - A per-slot `ChartStyle` (fonts, strokes, tick counts) beyond the palette.
 
