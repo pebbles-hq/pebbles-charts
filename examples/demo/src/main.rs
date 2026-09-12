@@ -86,6 +86,7 @@ fn app() -> AnyWidget {
         "Active users, smooth curve",
         area_chart(months(), vec![series("Users", vec![320.0, 410.0, 505.0, 480.0, 620.0, 700.0])])
             .curve(CurveInterpolation::Smooth)
+            .area_gradient(true)
             .width(460.0)
             .height(240.0),
     );

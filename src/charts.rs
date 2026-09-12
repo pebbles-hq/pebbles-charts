@@ -736,11 +736,13 @@ fn append_points_path(path: &mut BezPath, pts: &[(usize, f64, f64)], curve: Curv
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 fn draw_line_area_series(
     c: &mut Canvas<'_>,
     values: &[f64],
     series_index: usize,
     fill_area: bool,
+    area_gradient: bool,
     curve: CurveInterpolation,
     baseline: f64,
     y_scale: &LinearScale,
@@ -759,7 +761,13 @@ fn draw_line_area_series(
             append_points_path(&mut fill, &pts, curve);
             fill.line_to((pts[pts.len() - 1].1, baseline));
             fill.close_path();
-            c.fill_path(&fill, with_alpha(color, 0.18));
+            if area_gradient {
+                // Series color at the top of the band fading to transparent at the baseline.
+                let grad = Gradient::vertical([with_alpha(color, 0.34), with_alpha(color, 0.0)]);
+                c.fill_path_gradient(&fill, &grad);
+            } else {
+                c.fill_path(&fill, with_alpha(color, 0.18));
+            }
         }
 
         let mut line = BezPath::new();
@@ -1090,9 +1098,11 @@ pub struct CartesianChart {
     data_labels: bool,
     legend_position: LegendPosition,
     legend_values: bool,
-    animate: bool,
+    // None = auto (honor the OS reduced-motion preference); Some(_) = explicit override.
+    animate: Option<bool>,
     animation_ms: u32,
     palette: Option<Vec<Color>>,
+    area_gradient: bool,
 }
 
 /// Alias — a bar chart. See [`bar_chart`].
@@ -1148,9 +1158,10 @@ fn cartesian(kind: Kind, categories: Vec<String>, series: Vec<Series>) -> Cartes
         data_labels: false,
         legend_position: LegendPosition::Bottom,
         legend_values: false,
-        animate: true,
+        animate: None,
         animation_ms: 600,
         palette: None,
+        area_gradient: false,
     }
 }
 
@@ -1254,10 +1265,12 @@ impl CartesianChart {
         self.legend_values = on;
         self
     }
-    /// Animate the marks in on mount (a left-to-right reveal). Default true; set false
-    /// for a static chart or to honor a reduced-motion preference.
+    /// Animate the marks in on mount (a left-to-right reveal) and tween on data change.
+    /// By default this **auto-honors the OS reduced-motion preference** (animations off
+    /// when the user asked to minimize motion); call `.animate(true)` to force it on or
+    /// `.animate(false)` to force it off regardless.
     pub fn animate(mut self, on: bool) -> Self {
-        self.animate = on;
+        self.animate = Some(on);
         self
     }
     /// Entry-animation duration in milliseconds (default 600).
@@ -1270,6 +1283,13 @@ impl CartesianChart {
     /// custom `Vec<Color>`. Per-series `.color(..)` still wins over the palette.
     pub fn palette(mut self, colors: Vec<Color>) -> Self {
         self.palette = if colors.is_empty() { None } else { Some(colors) };
+        self
+    }
+    /// Fill area/stacked-area series with a **vertical gradient** (the series color at the
+    /// top fading to transparent at the baseline) instead of a flat translucent fill.
+    /// No effect on non-area charts. Default off.
+    pub fn area_gradient(mut self, on: bool) -> Self {
+        self.area_gradient = on;
         self
     }
     /// Draw horizontal grid lines (default true).
@@ -1532,8 +1552,9 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
     let all_combo_kinds = chart.combo_kinds.clone();
     let legend_position = chart.legend_position;
     let legend_values = chart.legend_values;
-    let animate = chart.animate;
+    let animate = chart.animate.unwrap_or(!prefers_reduced_motion());
     let animation_ms = chart.animation_ms;
+    let area_gradient = chart.area_gradient;
     let curve = chart.curve;
     let vertical_grid = chart.vertical_grid;
     let x_axis_title = chart.x_axis_title.clone();
@@ -1775,11 +1796,15 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                 continue;
             }
             let y = y_scale.map(line.value).clamp(pt, y1);
-            c.stroke_line(
+            // Reference/target lines are drawn dashed — the conventional way to distinguish
+            // an annotation from a data mark (matches Chart.js / D3 target lines).
+            c.stroke_line_dashed(
                 Offset::new(x0, y),
                 Offset::new(x0 + pw, y),
                 1.4,
                 line.color.unwrap_or(reference_c),
+                &[6.0, 4.0],
+                0.0,
             );
         }
 
@@ -1920,6 +1945,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                                         .get(si)
                                         .copied()
                                         .unwrap_or(SeriesKind::Line),
+                                area_gradient,
                                 curve,
                                 baseline,
                                 &y_scale,
@@ -1966,7 +1992,15 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                         fill.line_to(p);
                     }
                     fill.close_path();
-                    c.fill_path(&fill, with_alpha(draw_colors[si], 0.32));
+                    if area_gradient {
+                        let grad = Gradient::vertical([
+                            with_alpha(draw_colors[si], 0.5),
+                            with_alpha(draw_colors[si], 0.05),
+                        ]);
+                        c.fill_path_gradient(&fill, &grad);
+                    } else {
+                        c.fill_path(&fill, with_alpha(draw_colors[si], 0.32));
+                    }
                     let mut line = BezPath::new();
                     line.move_to(top[0]);
                     for &p in &top[1..] {
@@ -1982,6 +2016,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
                         sv,
                         si,
                         kind == Kind::Area,
+                        area_gradient,
                         if kind == Kind::SteppedLine {
                             CurveInterpolation::Step
                         } else {
@@ -3432,7 +3467,8 @@ pub struct PieChart {
     legend_values: bool,
     tooltip: bool,
     on_slice: Option<Rc<dyn Fn(usize, f64)>>,
-    animate: bool,
+    // None = auto (honor the OS reduced-motion preference); Some(_) = explicit override.
+    animate: Option<bool>,
     animation_ms: u32,
     palette: Option<Vec<Color>>,
 }
@@ -3449,7 +3485,7 @@ pub fn pie_chart(slices: Vec<Slice>) -> PieChart {
         legend_values: false,
         tooltip: true,
         on_slice: None,
-        animate: true,
+        animate: None,
         animation_ms: 700,
         palette: None,
     }
@@ -3466,7 +3502,7 @@ pub fn donut_chart(slices: Vec<Slice>) -> PieChart {
         legend_values: false,
         tooltip: true,
         on_slice: None,
-        animate: true,
+        animate: None,
         animation_ms: 700,
         palette: None,
     }
@@ -3517,9 +3553,11 @@ impl PieChart {
         self.palette = if colors.is_empty() { None } else { Some(colors) };
         self
     }
-    /// Animate the wedges in on mount (a radial sweep). Default true.
+    /// Animate the wedges in on mount (a radial sweep) and tween on data change. By default
+    /// this **auto-honors the OS reduced-motion preference**; call `.animate(true)`/`(false)`
+    /// to force it regardless.
     pub fn animate(mut self, on: bool) -> Self {
-        self.animate = on;
+        self.animate = Some(on);
         self
     }
     /// Entry-animation duration in milliseconds (default 700).
@@ -3638,7 +3676,7 @@ fn render_pie_chart(chart: &PieChart) -> AnyWidget {
     let legend_values = chart.legend_values;
     let tooltip = chart.tooltip;
     let on_slice = chart.on_slice.clone();
-    let animate = chart.animate;
+    let animate = chart.animate.unwrap_or(!prefers_reduced_motion());
     let animation_ms = chart.animation_ms;
     let palette_override = chart.palette.clone();
     let pal_color = move |i: usize| -> Color {

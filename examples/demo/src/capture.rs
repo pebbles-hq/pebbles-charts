@@ -107,6 +107,13 @@ fn scene_for(ui: &mut Ui, env: &mut TextEnv, w: u32, h: u32) -> Scene {
 pub fn shot(spec: &str, root: fn() -> AnyWidget, base: Color) -> Result<(), Box<dyn std::error::Error>> {
     let p: Vec<&str> = spec.split(':').collect();
     let (w, h, out) = (p[0].parse::<u32>()?, p[1].parse::<u32>()?, p[2]);
+    // Mirror App::run()'s reduced-motion detection (the capture path bypasses run), so
+    // `PEBBLES_REDUCED_MOTION=1 SHOT=...` renders the static, animation-free state.
+    if let Ok(v) = std::env::var("PEBBLES_REDUCED_MOTION") {
+        if matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on") {
+            set_prefers_reduced_motion(true);
+        }
+    }
     pebbles::widgets::overlay::init();
     pebbles::core::focus::init();
     let mut gpu = Gpu::new(w, h);

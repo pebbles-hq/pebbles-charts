@@ -167,8 +167,10 @@ axes and reference lines stay put) and pie/donut wedges **sweep in radially**. W
 (cartesian bars/lines/area and the y-axis morph together; pie/donut wedges re-proportion)
 rather than snapping — hovering, tooltips, and data labels always report the real target
 values. Adding or removing a series/slice re-runs the reveal as an enter animation.
-Control it with `.animate(bool)` (default on — set false to honor a reduced-motion
-preference) and `.animation_ms(n)` (default 600, pie 700).
+Animations **auto-honor the OS reduced-motion setting** — when the user has asked to
+minimize motion (`prefers-reduced-motion` on web, the desktop equivalent otherwise),
+charts render statically by default. Force it either way with `.animate(true|false)`, and
+tune the duration with `.animation_ms(n)` (default 600, pie 700).
 
 ## Theming
 
@@ -187,6 +189,11 @@ preference) and `.animation_ms(n)` (default 600, pie 700).
 - **Legend** is generated from series/slice labels; hide with `.legend(false)`, move it
   with `.legend_position(..)`, show per-entry totals/percentages with `.legend_values(true)`,
   and it's interactive by default (click to toggle a series/slice).
+- **Gradient area fills** — `.area_gradient(true)` fills area / stacked-area series with a
+  vertical gradient (series color fading to transparent at the baseline) instead of a flat
+  translucent fill.
+- **Reference lines** are drawn **dashed** (the conventional annotation style), distinct
+  from the solid data marks.
 
 ## Run the sample
 
@@ -200,8 +207,7 @@ SHOT=1180:1600:/tmp/charts.rgba cargo run -p demo
 
 - Responsive fill-parent sizing.
 - A per-slot `ChartStyle` (fonts, strokes, tick counts) beyond the palette.
-- Per-series fade-out on removal, and automatic `prefers-reduced-motion` (both pending
-  framework support).
+- Per-series fade-out on removal.
 
 ## License
 
