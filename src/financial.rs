@@ -5,6 +5,7 @@ use crate::render::*;
 use crate::scale::*;
 use pebbles::prelude::*;
 
+/// A candlestick / OHLC price chart. Built with [`candlestick_chart`] / [`ohlc_chart`].
 pub struct CandlestickChart {
     categories: Vec<String>,
     candles: Vec<Candle>,
@@ -13,8 +14,10 @@ pub struct CandlestickChart {
     ohlc: bool,
 }
 
+/// Alias — an OHLC bar chart. See [`ohlc_chart`].
 pub type OhlcChart = CandlestickChart;
 
+/// A **candlestick chart** over `categories` from OHLC [`Candle`]s.
 pub fn candlestick_chart(categories: Vec<String>, candles: Vec<Candle>) -> CandlestickChart {
     CandlestickChart {
         categories,
@@ -25,6 +28,7 @@ pub fn candlestick_chart(categories: Vec<String>, candles: Vec<Candle>) -> Candl
     }
 }
 
+/// An **OHLC chart** (open-high-low-close bars) over `categories`.
 pub fn ohlc_chart(categories: Vec<String>, candles: Vec<Candle>) -> OhlcChart {
     CandlestickChart {
         categories,
@@ -36,10 +40,12 @@ pub fn ohlc_chart(categories: Vec<String>, candles: Vec<Candle>) -> OhlcChart {
 }
 
 impl CandlestickChart {
+    /// Set the plot width in px.
     pub fn width(mut self, w: f64) -> Self {
         self.width = w;
         self
     }
+    /// Set the plot height in px.
     pub fn height(mut self, h: f64) -> Self {
         self.height = h;
         self

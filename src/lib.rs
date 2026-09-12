@@ -42,6 +42,9 @@
 //!
 //! Everything a caller needs is re-exported at the crate root (below).
 
+// Every public item must be documented — the compiler enforces it.
+#![deny(missing_docs)]
+
 // --- concept modules (shared internals are private to the crate) --------------
 pub mod config;
 pub mod data;

@@ -5,6 +5,7 @@ use crate::render::*;
 use crate::style::*;
 use pebbles::prelude::*;
 
+/// A dense heatmap grid: one colored cell per (x, y) category pair. Built with [`heatmap_chart`].
 pub struct HeatmapChart {
     x_categories: Vec<String>,
     y_categories: Vec<String>,
@@ -13,6 +14,7 @@ pub struct HeatmapChart {
     height: f64,
 }
 
+/// A **heatmap** over `x_categories` × `y_categories` from [`HeatCell`]s.
 pub fn heatmap_chart(
     x_categories: Vec<String>,
     y_categories: Vec<String>,
@@ -28,10 +30,12 @@ pub fn heatmap_chart(
 }
 
 impl HeatmapChart {
+    /// Set the plot width in px.
     pub fn width(mut self, w: f64) -> Self {
         self.width = w;
         self
     }
+    /// Set the plot height in px.
     pub fn height(mut self, h: f64) -> Self {
         self.height = h;
         self

@@ -7,6 +7,7 @@ use crate::scale::*;
 use crate::style::*;
 use pebbles::prelude::*;
 
+/// A scatter or bubble chart over numeric x/y data. Built with [`scatter_chart`] / [`bubble_chart`].
 pub struct ScatterChart {
     series: Vec<PointSeries>,
     width: f64,
@@ -19,8 +20,10 @@ pub struct ScatterChart {
     tick_count: usize,
 }
 
+/// Alias — a bubble chart (scatter with per-point radii). See [`bubble_chart`].
 pub type BubbleChart = ScatterChart;
 
+/// A **scatter chart** of numeric x/y points.
 pub fn scatter_chart(series: Vec<PointSeries>) -> ScatterChart {
     ScatterChart {
         series,
@@ -35,6 +38,7 @@ pub fn scatter_chart(series: Vec<PointSeries>) -> ScatterChart {
     }
 }
 
+/// A **bubble chart** — scatter with a per-point radius (see [`bubble_point`]).
 pub fn bubble_chart(series: Vec<PointSeries>) -> BubbleChart {
     ScatterChart {
         series,
@@ -50,38 +54,47 @@ pub fn bubble_chart(series: Vec<PointSeries>) -> BubbleChart {
 }
 
 impl ScatterChart {
+    /// Set the plot width in px.
     pub fn width(mut self, w: f64) -> Self {
         self.width = w;
         self
     }
+    /// Set the plot height in px.
     pub fn height(mut self, h: f64) -> Self {
         self.height = h;
         self
     }
+    /// Show or hide the legend (default on).
     pub fn legend(mut self, on: bool) -> Self {
         self.legend = on;
         self
     }
+    /// Fix the x-axis domain to `min..max` (otherwise derived from the data).
     pub fn x_range(mut self, min: f64, max: f64) -> Self {
         self.x_range = Some((min, max));
         self
     }
+    /// Fix the y-axis domain to `min..max` (otherwise derived from the data).
     pub fn y_range(mut self, min: f64, max: f64) -> Self {
         self.y_range = Some((min, max));
         self
     }
+    /// Set the x-axis scale ([`AxisScale::Linear`] default, `Log10`, or `Time`).
     pub fn x_scale(mut self, scale: AxisScale) -> Self {
         self.x_scale = scale;
         self
     }
+    /// Shorthand for `.x_scale(AxisScale::Log10)`.
     pub fn x_log(mut self) -> Self {
         self.x_scale = AxisScale::Log10;
         self
     }
+    /// Shorthand for `.x_scale(AxisScale::Time)`.
     pub fn x_time(mut self) -> Self {
         self.x_scale = AxisScale::Time;
         self
     }
+    /// Target number of x-axis ticks (a hint; the nice-number step may adjust it).
     pub fn tick_count(mut self, count: usize) -> Self {
         self.tick_count = count.max(2);
         self

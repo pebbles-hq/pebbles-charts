@@ -80,6 +80,7 @@ pub fn donut_chart(slices: Vec<Slice>) -> PieChart {
 }
 
 impl PieChart {
+    /// Set the chart diameter in px.
     pub fn size(mut self, px: f64) -> Self {
         self.size = px;
         self
@@ -89,10 +90,12 @@ impl PieChart {
         self.hole = frac.clamp(0.0, 0.95);
         self
     }
+    /// Show or hide the legend (default on).
     pub fn legend(mut self, on: bool) -> Self {
         self.legend = on;
         self
     }
+    /// Show each slice's percentage as an on-slice label (default off).
     pub fn data_labels(mut self, on: bool) -> Self {
         self.data_labels = on;
         self

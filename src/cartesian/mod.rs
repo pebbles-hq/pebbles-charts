@@ -230,10 +230,12 @@ pub fn sparkline(values: Vec<f64>) -> Sparkline {
 }
 
 impl CartesianChart {
+    /// Set the plot width in px (also the fallback width under `.fill_width(true)`).
     pub fn width(mut self, w: f64) -> Self {
         self.width = w;
         self
     }
+    /// Set the plot height in px.
     pub fn height(mut self, h: f64) -> Self {
         self.height = h;
         self

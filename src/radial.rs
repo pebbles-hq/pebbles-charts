@@ -9,6 +9,7 @@ use pebbles::prelude::*;
 // Radar / Gauge / Progress
 // ---------------------------------------------------------------------------
 
+/// A radar (spider) chart plotting each series as a polygon over shared category axes. Built with [`radar_chart`].
 pub struct RadarChart {
     categories: Vec<String>,
     series: Vec<Series>,
@@ -16,6 +17,7 @@ pub struct RadarChart {
     legend: bool,
 }
 
+/// A **radar chart** over `categories`, one polygon per series.
 pub fn radar_chart(categories: Vec<String>, series: Vec<Series>) -> RadarChart {
     RadarChart {
         categories,
@@ -26,10 +28,12 @@ pub fn radar_chart(categories: Vec<String>, series: Vec<Series>) -> RadarChart {
 }
 
 impl RadarChart {
+    /// Set the chart's diameter in px.
     pub fn size(mut self, size: f64) -> Self {
         self.size = size;
         self
     }
+    /// Show or hide the legend (default on).
     pub fn legend(mut self, on: bool) -> Self {
         self.legend = on;
         self
@@ -129,6 +133,7 @@ impl IntoWidget for RadarChart {
     }
 }
 
+/// A circular progress **ring** or **gauge**. Built with [`progress_ring`] / [`gauge_chart`].
 pub struct RadialProgressChart {
     label: String,
     value: f64,
@@ -139,8 +144,10 @@ pub struct RadialProgressChart {
     color: Option<Color>,
 }
 
+/// Alias — a gauge arc. See [`gauge_chart`].
 pub type GaugeChart = RadialProgressChart;
 
+/// A **progress ring** showing `value` out of `max` as a full circular arc.
 pub fn progress_ring(label: impl Into<String>, value: f64, max: f64) -> RadialProgressChart {
     RadialProgressChart {
         label: label.into(),
@@ -153,6 +160,7 @@ pub fn progress_ring(label: impl Into<String>, value: f64, max: f64) -> RadialPr
     }
 }
 
+/// A **gauge** showing `value` out of `max` as an open arc.
 pub fn gauge_chart(label: impl Into<String>, value: f64, max: f64) -> GaugeChart {
     RadialProgressChart {
         label: label.into(),
@@ -166,14 +174,17 @@ pub fn gauge_chart(label: impl Into<String>, value: f64, max: f64) -> GaugeChart
 }
 
 impl RadialProgressChart {
+    /// Set the diameter in px.
     pub fn size(mut self, size: f64) -> Self {
         self.size = size;
         self
     }
+    /// Set the ring/arc stroke thickness in px.
     pub fn thickness(mut self, thickness: f64) -> Self {
         self.thickness = thickness.max(1.0);
         self
     }
+    /// Set the progress-arc color (default: the first palette color).
     pub fn color(mut self, color: Color) -> Self {
         self.color = Some(color);
         self

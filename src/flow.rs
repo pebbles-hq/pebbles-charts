@@ -5,6 +5,7 @@ use crate::legend::*;
 use crate::style::*;
 use pebbles::prelude::*;
 
+/// A funnel chart: stacked stages tapering by value. Built with [`funnel_chart`].
 pub struct FunnelChart {
     slices: Vec<Slice>,
     width: f64,
@@ -12,6 +13,7 @@ pub struct FunnelChart {
     legend: bool,
 }
 
+/// A **funnel chart** from ordered `slices` (each stage's value sets its width).
 pub fn funnel_chart(slices: Vec<Slice>) -> FunnelChart {
     FunnelChart {
         slices,
@@ -22,14 +24,17 @@ pub fn funnel_chart(slices: Vec<Slice>) -> FunnelChart {
 }
 
 impl FunnelChart {
+    /// Set the plot width in px.
     pub fn width(mut self, w: f64) -> Self {
         self.width = w;
         self
     }
+    /// Set the plot height in px.
     pub fn height(mut self, h: f64) -> Self {
         self.height = h;
         self
     }
+    /// Show or hide the legend (default on).
     pub fn legend(mut self, on: bool) -> Self {
         self.legend = on;
         self
@@ -93,12 +98,14 @@ impl IntoWidget for FunnelChart {
     }
 }
 
+/// A simple Sankey flow diagram of weighted links. Built with [`sankey_chart`].
 pub struct SankeyChart {
     links: Vec<SankeyLink>,
     width: f64,
     height: f64,
 }
 
+/// A **Sankey chart** from weighted [`SankeyLink`]s.
 pub fn sankey_chart(links: Vec<SankeyLink>) -> SankeyChart {
     SankeyChart {
         links,
@@ -108,10 +115,12 @@ pub fn sankey_chart(links: Vec<SankeyLink>) -> SankeyChart {
 }
 
 impl SankeyChart {
+    /// Set the plot width in px.
     pub fn width(mut self, w: f64) -> Self {
         self.width = w;
         self
     }
+    /// Set the plot height in px.
     pub fn height(mut self, h: f64) -> Self {
         self.height = h;
         self
