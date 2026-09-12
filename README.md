@@ -129,6 +129,10 @@ fn browser_share() -> impl IntoWidget {
 - **Missing values** are supported with `series_with_gaps("Label", vec![Some(1.0), None,
   Some(3.0)])`; line and area charts break the path at gaps, while bars/tooltips omit
   the missing mark.
+- **Error bars** — `series_with_errors("Label", values, errors)` (or `.errors(..)`) draws a
+  capped ± whisker on each mark; the y-domain expands to include `value ± error`.
+- **Annotations** — `.annotation(annotation(category, value, "Launch"))` pins a dot + label
+  to a data point (optionally `.color(..)`), for marking events or outliers.
 - **Combo** charts take `Vec<ComboSeries>` from
   `combo_series("Label", values, SeriesKind::Bar | Line | Area)`.
 - **Scatter / bubble** charts take `Vec<PointSeries>` built from `point` or

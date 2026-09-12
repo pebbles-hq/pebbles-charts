@@ -128,6 +128,29 @@ impl ReferenceBand {
     }
 }
 
+/// A callout pinned to one data point (category index + value): a dot plus a text label,
+/// for marking an event or an outlier ("launch", "peak", …). Built with [`annotation`].
+#[derive(Clone)]
+pub struct Annotation {
+    pub category: usize,
+    pub value: f64,
+    pub label: String,
+    pub color: Option<Color>,
+}
+
+/// A point callout at category `category`, value `value`, showing `label`.
+pub fn annotation(category: usize, value: f64, label: impl Into<String>) -> Annotation {
+    Annotation { category, value, label: label.into(), color: None }
+}
+
+impl Annotation {
+    /// Override the dot + label color (default: the reference color).
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+}
+
 #[derive(Clone)]
 pub struct ComboSeries {
     pub label: String,
@@ -1101,6 +1124,7 @@ pub struct CartesianChart {
     category_label_mode: CategoryLabelMode,
     reference_lines: Vec<ReferenceLine>,
     reference_bands: Vec<ReferenceBand>,
+    annotations: Vec<Annotation>,
     data_labels: bool,
     legend_position: LegendPosition,
     legend_values: bool,
@@ -1166,6 +1190,7 @@ fn cartesian(kind: Kind, categories: Vec<String>, series: Vec<Series>) -> Cartes
         category_label_mode: CategoryLabelMode::Auto,
         reference_lines: Vec::new(),
         reference_bands: Vec::new(),
+        annotations: Vec::new(),
         data_labels: false,
         legend_position: LegendPosition::Bottom,
         legend_values: false,
@@ -1232,6 +1257,7 @@ pub fn combo_chart(categories: Vec<String>, series: Vec<ComboSeries>) -> ComboCh
             label: s.label,
             values: s.values,
             color: s.color,
+            errors: None,
         })
         .collect();
     let mut chart = cartesian(Kind::Combo, categories, mapped);
@@ -1248,6 +1274,7 @@ pub fn sparkline(values: Vec<f64>) -> Sparkline {
             label: String::new(),
             values,
             color: None,
+            errors: None,
         }],
     )
     .height(64.0)
@@ -1426,6 +1453,11 @@ impl CartesianChart {
     /// Add a horizontal reference band.
     pub fn reference_band(mut self, band: ReferenceBand) -> Self {
         self.reference_bands.push(band);
+        self
+    }
+    /// Pin a point callout (dot + label) to a data point. See [`annotation`](crate::annotation).
+    pub fn annotation(mut self, annotation: Annotation) -> Self {
+        self.annotations.push(annotation);
         self
     }
     /// Show a value tooltip when the chart is hovered, tapped, or dragged (default true).
@@ -1683,6 +1715,7 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
     let category_label_mode = chart.category_label_mode;
     let reference_lines = chart.reference_lines.clone();
     let reference_bands = chart.reference_bands.clone();
+    let annotations = chart.annotations.clone();
     let data_labels = chart.data_labels;
     let palette_override = chart.palette.clone();
     let pal_color = move |i: usize| -> Color {
@@ -1859,8 +1892,34 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         .collect();
     let draw_vals = anim_vals.clone();
     let draw_colors = colors.clone();
+    // Per-series ± error whiskers (visible order), drawn on each mark. None = no whiskers.
+    let draw_errors: Vec<Option<Vec<f64>>> = visible.iter().map(|&i| series[i].errors.clone()).collect();
     let ncat = categories.len().max(1);
-    let axis_values = axis_values_for_kind(kind, &anim_vals);
+    let mut axis_values = axis_values_for_kind(kind, &anim_vals);
+    // Error whiskers reach v ± e, so the domain must include those bounds (non-stacked
+    // kinds; stacked/percent charts don't draw error bars). Add v+e and v-e as extra rows.
+    let stacked_kind = matches!(
+        kind,
+        Kind::StackedBar | Kind::PercentStackedBar | Kind::StackedArea | Kind::PercentStackedArea
+    );
+    if !stacked_kind {
+        for (si, errs) in draw_errors.iter().enumerate() {
+            let Some(errs) = errs else { continue };
+            let vals_si = draw_vals.get(si).map(Vec::as_slice).unwrap_or(&[]);
+            let hi: Vec<f64> = vals_si
+                .iter()
+                .enumerate()
+                .map(|(ci, &v)| v + errs.get(ci).copied().filter(|e| e.is_finite()).unwrap_or(0.0))
+                .collect();
+            let lo: Vec<f64> = vals_si
+                .iter()
+                .enumerate()
+                .map(|(ci, &v)| v - errs.get(ci).copied().filter(|e| e.is_finite()).unwrap_or(0.0))
+                .collect();
+            axis_values.push(hi);
+            axis_values.push(lo);
+        }
+    }
     let axis = ValueAxis::from_values(&axis_values, y_range, tick_count);
     let ticks = axis.ticks.clone();
     let format_value: Rc<dyn Fn(f64) -> String> =
@@ -2214,6 +2273,35 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         if wiping {
             c.pop_clip();
         }
+        // Error bars: a ± whisker (with caps) on each mark for series that carry `errors`.
+        // Positioned on the real mark — the grouped-bar center for bars, the point x
+        // otherwise — using the current scale so it tracks the value tween.
+        if draw_errors.iter().any(Option::is_some) {
+            let slot = pw / ncat as f64;
+            let group_w = slot * 0.7;
+            let bw = group_w / (draw_vals.len().max(1)) as f64;
+            for (si, errs) in draw_errors.iter().enumerate() {
+                let Some(errs) = errs else { continue };
+                let col = with_alpha(draw_colors.get(si).copied().unwrap_or(zero_c), 0.85);
+                for (ci, &v) in draw_vals.get(si).map(Vec::as_slice).unwrap_or(&[]).iter().enumerate() {
+                    let e = errs.get(ci).copied().unwrap_or(f64::NAN);
+                    if !v.is_finite() || !e.is_finite() || e <= 0.0 {
+                        continue;
+                    }
+                    let x = if kind == Kind::Bar {
+                        cx_of(ci) - group_w / 2.0 + si as f64 * bw + bw / 2.0
+                    } else {
+                        cx_of(ci)
+                    };
+                    let y_hi = y_scale.map(v + e);
+                    let y_lo = y_scale.map(v - e);
+                    let cap = 4.0;
+                    c.stroke_line(Offset::new(x, y_hi), Offset::new(x, y_lo), 1.4, col);
+                    c.stroke_line(Offset::new(x - cap, y_hi), Offset::new(x + cap, y_hi), 1.4, col);
+                    c.stroke_line(Offset::new(x - cap, y_lo), Offset::new(x + cap, y_lo), 1.4, col);
+                }
+            }
+        }
         // Per-series exit fade: draw each removed series' real last values as a fading ghost
         // line (outside the entry-wipe clip), receding over the current scale.
         if !exiting_series.is_empty() {
@@ -2265,6 +2353,19 @@ fn render_cartesian_chart(chart: &CartesianChart) -> AnyWidget {
         height,
         label_c,
     ));
+    if !annotations.is_empty() && anim_t >= 0.999 && data_t_val >= 0.999 {
+        plot_layers.push(annotation_layer(
+            &annotations,
+            &axis,
+            plot_width,
+            height,
+            ncat,
+            reference_c,
+            label_c,
+            label_px,
+            &font,
+        ));
+    }
     let plot_surface = sized_box(stack(plot_layers))
         .width(plot_width)
         .height(height)
@@ -2761,6 +2862,58 @@ fn cartesian_data_labels(
         .width(width)
         .height(height)
         .into_widget()
+}
+
+/// Point callouts (dot + label) pinned to data points — the annotation overlay.
+#[allow(clippy::too_many_arguments)]
+fn annotation_layer(
+    annotations: &[Annotation],
+    axis: &ValueAxis,
+    width: f64,
+    height: f64,
+    ncat: usize,
+    ref_color: Color,
+    label_color: Color,
+    label_px: f32,
+    font: &Option<String>,
+) -> AnyWidget {
+    let bottom = (height - PLOT_BOTTOM).max(PLOT_TOP + 1.0);
+    let scale = axis.scale(PLOT_TOP, bottom);
+    let pw = (width - PLOT_LEFT - PLOT_RIGHT).max(1.0);
+    let ncatf = ncat.max(1) as f64;
+    let dot = 8.0;
+    let lw = 120.0;
+    let mut items = Vec::new();
+    for a in annotations {
+        if !a.value.is_finite() {
+            continue;
+        }
+        let color = a.color.unwrap_or(ref_color);
+        let cx = PLOT_LEFT + pw * (a.category as f64 + 0.5) / ncatf;
+        let cy = scale.map(a.value).clamp(PLOT_TOP, bottom);
+        items.push(
+            positioned(container().width(dot).height(dot).decoration(
+                BoxDecoration::new().color(color).radius(BorderRadius::all(dot / 2.0)),
+            ))
+            .left(cx - dot / 2.0)
+            .top(cy - dot / 2.0)
+            .into_widget(),
+        );
+        items.push(
+            positioned(
+                sized_box(
+                    apply_font(text(a.label.clone()).size(label_px).semibold().color(label_color), font)
+                        .align(TextAlign::Center),
+                )
+                .width(lw)
+                .height(16.0),
+            )
+            .left((cx - lw / 2.0).clamp(0.0, width - lw))
+            .top((cy - dot / 2.0 - 18.0).clamp(0.0, height - 16.0))
+            .into_widget(),
+        );
+    }
+    sized_box(stack(items)).width(width).height(height).into_widget()
 }
 
 fn y_axis_labels(

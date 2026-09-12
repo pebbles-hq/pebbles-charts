@@ -27,13 +27,14 @@
 mod charts;
 
 pub use charts::{
-    AreaChart, AxisScale, BarChart, BubbleChart, Candle, CandlestickChart, CategoryLabelMode,
-    ComboChart, ComboSeries, CurveInterpolation, FunnelChart, GaugeChart, HeatCell, HeatmapChart,
-    HorizontalBarChart, LegendPosition, LineChart, OhlcChart, PercentStackedAreaChart,
-    PercentStackedBarChart,
+    Annotation, AreaChart, AxisScale, BarChart, BubbleChart, Candle, CandlestickChart,
+    CategoryLabelMode, ComboChart, ComboSeries, CurveInterpolation, FunnelChart, GaugeChart,
+    HeatCell, HeatmapChart, HorizontalBarChart, LegendPosition, LineChart, OhlcChart,
+    PercentStackedAreaChart, PercentStackedBarChart,
     PieChart, PointSeries, RadarChart, RadialProgressChart, ReferenceBand, ReferenceLine,
     SankeyChart, SankeyLink, ScatterChart, ScatterPoint, SeriesKind, Sparkline, StackedAreaChart,
-    StackedBarChart, SteppedLineChart, area_chart, bar_chart, bubble_chart, bubble_point, candle,
+    StackedBarChart, SteppedLineChart, annotation, area_chart, bar_chart, bubble_chart,
+    bubble_point, candle,
     candlestick_chart, combo_chart, combo_series, donut_chart, funnel_chart, gauge_chart,
     heat_cell, heatmap_chart, horizontal_bar_chart, line_chart, ohlc_chart,
     percent_stacked_area_chart, percent_stacked_bar_chart, pie_chart, point, point_series,
@@ -49,6 +50,9 @@ pub struct Series {
     pub label: String,
     pub values: Vec<f64>,
     pub color: Option<Color>,
+    /// Optional symmetric ± error / uncertainty per value (same length as `values`); drawn
+    /// as an error-bar whisker on each mark. `NaN`/missing entries draw no whisker.
+    pub errors: Option<Vec<f64>>,
 }
 
 /// Values accepted by [`series`]. `None` becomes a visible gap for line/area charts and
@@ -75,6 +79,7 @@ pub fn series(label: impl Into<String>, values: impl IntoSeriesValues) -> Series
         label: label.into(),
         values: values.into_series_values(),
         color: None,
+        errors: None,
     }
 }
 
@@ -83,9 +88,24 @@ pub fn series_with_gaps(label: impl Into<String>, values: Vec<Option<f64>>) -> S
     series(label, values)
 }
 
+/// Create a [`Series`] with a symmetric ± error per value — drawn as error-bar whiskers.
+pub fn series_with_errors(
+    label: impl Into<String>,
+    values: impl IntoSeriesValues,
+    errors: Vec<f64>,
+) -> Series {
+    series(label, values).errors(errors)
+}
+
 impl Series {
     pub fn color(mut self, color: Color) -> Self {
         self.color = Some(color);
+        self
+    }
+    /// Attach a symmetric ± error per value (error-bar whiskers). Length should match
+    /// `values`; extra/short entries are ignored, and `NaN` draws no whisker.
+    pub fn errors(mut self, errors: Vec<f64>) -> Self {
+        self.errors = Some(errors);
         self
     }
 }
