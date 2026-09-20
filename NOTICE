@@ -1,0 +1,11 @@
+pebbles-charts
+Copyright 2026 Reyco Seguma
+
+This product includes software developed by Reyco Seguma, licensed under the
+Apache License, Version 2.0 (see LICENSE).
+
+It depends on the Pebbles GUI framework
+(https://github.com/pebbles-hq/pebbles), also licensed under the Apache
+License, Version 2.0.
+
+This product bundles no third-party data or assets of its own.

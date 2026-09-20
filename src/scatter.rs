@@ -96,7 +96,8 @@ impl ScatterChart {
     }
     /// Target number of x-axis ticks (a hint; the nice-number step may adjust it).
     pub fn tick_count(mut self, count: usize) -> Self {
-        self.tick_count = count.max(2);
+        // Clamped to 2..=1000 — an unbounded count eagerly allocates the tick vector.
+        self.tick_count = count.clamp(2, 1000);
         self
     }
 }

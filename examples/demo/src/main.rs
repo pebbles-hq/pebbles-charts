@@ -4,6 +4,9 @@
 //! Run it: `cargo run -p demo`
 //! Headless screenshot: `SHOT=1180:900:/tmp/charts.rgba cargo run -p demo`
 
+// The sample app needs no `unsafe`; the library forbids it too (see `src/lib.rs`).
+#![forbid(unsafe_code)]
+
 use pebbles::prelude::*;
 use pebbles_charts::{
     CategoryLabelMode, CurveInterpolation, SeriesKind, area_chart, bar_chart, bubble_chart,

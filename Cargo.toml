@@ -17,7 +17,19 @@ keywords = ["charts", "graph", "visualization", "gui", "pebbles"]
 categories = ["gui", "visualization"]
 
 [dependencies]
-pebbles = { git = "https://github.com/pebbles-hq/pebbles" }
+# Pinned to a reviewed framework commit — `cargo update` won't silently ingest an
+# unreviewed `main` HEAD. Bump the rev deliberately when adopting framework changes.
+pebbles = { git = "https://github.com/pebbles-hq/pebbles", rev = "1d6e84177b954bd2517c9d1c1a601f64365249f1" }
+
+# Warn-only lints (CI runs clippy warn-only until the backlog is measured; never bake
+# `deny` into the manifest). The clippy set targets the hostile-input classes a charting
+# library is exposed to: slicing/indexing panics and overflowing arithmetic on untrusted
+# numeric data.
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+string_slice = "warn"
+indexing_slicing = "warn"
+arithmetic_side_effects = "warn"
 
 [profile.dev]
 opt-level = 0

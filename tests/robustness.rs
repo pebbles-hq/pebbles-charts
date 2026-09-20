@@ -122,6 +122,37 @@ fn non_finite_and_negative_values_do_not_panic() {
 }
 
 #[test]
+fn non_finite_plot_padding_does_not_panic() {
+    // A NaN/±Inf padding component would make the plot rect (and the `clamp(pt, y1)` bounds
+    // in the painter) non-finite, tripping stdlib `clamp`'s `min <= max` assert. The setter
+    // sanitizes non-finite insets, so painting must stay panic-free.
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        paint(
+            bar_chart(cats(3), vec![series("x", vec![1.0, 2.0, 3.0])])
+                .plot_padding(EdgeInsets {
+                    left: bad,
+                    top: bad,
+                    right: bad,
+                    bottom: bad,
+                })
+                .width(400.0)
+                .height(240.0),
+        );
+        paint(
+            line_chart(cats(3), vec![series("x", vec![1.0, 2.0, 3.0])])
+                .plot_padding(EdgeInsets {
+                    left: 10.0,
+                    top: bad,
+                    right: 10.0,
+                    bottom: 8.0,
+                })
+                .width(400.0)
+                .height(240.0),
+        );
+    }
+}
+
+#[test]
 fn error_bars_and_annotations_out_of_range_do_not_panic() {
     paint(
         line_chart(

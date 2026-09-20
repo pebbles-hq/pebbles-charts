@@ -321,7 +321,17 @@ impl CartesianChart {
     /// data-labels more room. The draw, hit-testing, and every overlay share this value, so
     /// alignment stays correct.
     pub fn plot_padding(mut self, padding: EdgeInsets) -> Self {
-        self.plot_padding = Some(padding);
+        // Sanitize non-finite insets at the setter: a NaN/±Inf component propagates into the
+        // plot rect and the `clamp(pt, y1)` calls in the painter, where stdlib `clamp` fires
+        // `assert!(min <= max)` on a NaN bound — a panic on hostile input. Clamp each
+        // component to a finite value (non-finite → 0.0) so the draw path stays panic-free.
+        let finite = |v: f64| if v.is_finite() { v } else { 0.0 };
+        self.plot_padding = Some(EdgeInsets {
+            left: finite(padding.left),
+            top: finite(padding.top),
+            right: finite(padding.right),
+            bottom: finite(padding.bottom),
+        });
         self
     }
     /// Show a loading placeholder (a "Loading…" panel at the chart's footprint) instead of
@@ -375,9 +385,11 @@ impl CartesianChart {
         self.right_y_title = Some(title.into());
         self
     }
-    /// Set the number of y-axis ticks/grid lines (default 5; minimum 2).
+    /// Set the number of y-axis ticks/grid lines (default 5; clamped to 2..=1000).
     pub fn tick_count(mut self, count: usize) -> Self {
-        self.tick_count = count.max(2);
+        // Upper cap: `linear_ticks` allocates the whole tick vector eagerly, so an unbounded
+        // count is a memory-DoS surface on hostile input.
+        self.tick_count = count.clamp(2, 1000);
         if let Some(axis) = self.right_y_axis.clone() {
             self.right_y_axis = Some(ValueAxis::from_values(
                 &[],
