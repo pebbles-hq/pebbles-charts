@@ -6,7 +6,9 @@ rust-version = "1.90"
 publish = false
 
 [dependencies]
-pebbles = { git = "https://github.com/pebbles-hq/pebbles" }
+# Same rev as the library's `pebbles` dep — otherwise cargo builds two copies of the
+# framework and the demo's `IntoWidget`/`Widget` bounds don't match the lib's chart types.
+pebbles = { git = "https://github.com/pebbles-hq/pebbles", rev = "1d6e84177b954bd2517c9d1c1a601f64365249f1" }
 pebbles-charts = { path = "../.." }
 
 # Headless render (SHOT=<w>:<h>:<out.rgba>) — rasterize via vello_hybrid, no display.
