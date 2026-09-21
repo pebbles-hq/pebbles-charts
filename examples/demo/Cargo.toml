@@ -14,5 +14,5 @@ pebbles-charts = { path = "../..", version = "0.1.0" }
 # Headless render (SHOT=<w>:<h>:<out.rgba>) — rasterize via vello_hybrid, no display.
 vello = { version = "0.10", default-features = true }
 vello_hybrid = "0.2"
-wgpu = "29"
+wgpu = "30"
 pollster = "1"
