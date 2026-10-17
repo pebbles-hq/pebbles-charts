@@ -17,6 +17,7 @@ use pebbles_charts::{
     slice, sparkline, stacked_area_chart, stacked_bar_chart, stepped_line_chart,
 };
 
+#[cfg(not(target_family = "wasm"))]
 mod capture;
 
 fn months() -> Vec<String> {
@@ -443,8 +444,11 @@ fn app() -> AnyWidget {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     Theme::light().make_current();
-    if let Ok(spec) = std::env::var("SHOT") {
-        return capture::shot(&spec, app, theme().colors.background);
+    #[cfg(not(target_family = "wasm"))]
+    {
+        if let Ok(spec) = std::env::var("SHOT") {
+            return capture::shot(&spec, app, theme().colors.background);
+        }
     }
     App::new(component(app))
         .title("Pebbles Charts")
