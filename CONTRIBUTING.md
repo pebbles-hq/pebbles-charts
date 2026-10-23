@@ -8,7 +8,7 @@ you can find things by name and land changes with confidence.
 
 You need a recent stable Rust (edition 2024; `rust-version = 1.90`). The crate depends on
 `pebbles` as a git dependency, so the first build fetches and compiles the framework (and
-its `wgpu`/`vello` stack) — expect a few minutes the first time, fast after that.
+its `wgpu` stack) — expect a few minutes the first time, fast after that.
 
 ```sh
 git clone https://github.com/pebbles-hq/pebbles-charts

@@ -21,8 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # parley/fontique (pulled in through the pebbles framework) needs the fontconfig
-      # dev headers to build its font-discovery build script; winit dlopens X11/Wayland at
+      # fontconfig dev headers: kept until P23 confirms the framework's text stack no longer
+      # needs them at build time; winit dlopens X11/Wayland at
       # runtime, so no display libs are needed to build or to run the headless suites.
       - name: System deps (Linux)
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
@@ -50,8 +50,6 @@ jobs:
         # the CPU tests (unit, a11y, robustness, features) all run.
         run: cargo test --workspace
 
-      - name: Test (wgpu backend — transitional, delete at Phase 6)
-        run: cargo test --workspace --no-default-features --features wgpu
 
       - name: Docs
         run: cargo doc --no-deps --workspace

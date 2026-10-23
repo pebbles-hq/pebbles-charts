@@ -1,7 +1,7 @@
 # cargo-deny configuration — licenses, advisories, and duplicate-version hygiene.
 # Run locally with `cargo deny check`; CI runs it on every push.
 #
-# This crate pulls in the whole Pebbles framework (winit / wgpu / vello via the `pebbles`
+# This crate pulls in the whole Pebbles framework (winit / wgpu via the `pebbles`
 # git dependency and the `demo` example), so its supply-chain surface — and the advisories
 # reachable through it — mirror the framework's.
 
