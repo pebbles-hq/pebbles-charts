@@ -21,12 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # fontconfig dev headers: kept until P23 confirms the framework's text stack no longer
-      # needs them at build time; winit dlopens X11/Wayland at
-      # runtime, so no display libs are needed to build or to run the headless suites.
-      - name: System deps (Linux)
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
-
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
@@ -59,7 +53,7 @@ jobs:
   # ───────────────────────────────────────────────────────────────────────────
   # cargo-audit — the RustSec advisory database. The SCA gate: it finds CVEs in the
   # DEPENDENCY graph. Reads the committed Cargo.lock, so it needs no build (and thus no
-  # fontconfig / framework checkout) and no token or account.
+  # framework checkout) and no token or account.
   # ───────────────────────────────────────────────────────────────────────────
   audit:
     name: cargo-audit (RustSec)
