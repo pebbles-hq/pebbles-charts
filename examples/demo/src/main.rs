@@ -40,10 +40,7 @@ fn card(title: &str, sub: &str, chart: impl IntoWidget) -> impl IntoWidget {
         .padding(EdgeInsets::all(20.0))
         .child(
             column(children![
-                text(title.to_string())
-                    .size(16.0)
-                    .bold()
-                    .color(c.foreground),
+                text(title.to_string()).size(16.0).bold(),
                 gap_h(2.0),
                 text(sub.to_string()).size(12.5).color(c.muted_foreground),
                 gap_h(18.0),
@@ -402,7 +399,17 @@ fn app() -> AnyWidget {
         .child(scroll_view(
             container().padding(EdgeInsets::all(28.0)).child(
                 column(children![
-                    text("Pebbles Charts").size(24.0).bold().color(c.foreground),
+                    row(children![
+                        text("Pebbles Charts").size(24.0).bold(),
+                        expanded(container()),
+                        // Follows the OS light/dark setting (ThemeMode::System) until
+                        // toggled; every chart colour is read from the live theme.
+                        button(if theme().dark { "Light" } else { "Dark" })
+                            .size(ButtonSize::Sm)
+                            .variant(ButtonVariant::Outline)
+                            .on_pressed(toggle_theme),
+                    ])
+                    .cross_axis_alignment(CrossAxisAlignment::Center),
                     gap_h(4.0),
                     text("Composable, themeable chart widgets — drawn on the GPU canvas.")
                         .size(13.5)
@@ -443,10 +450,12 @@ fn app() -> AnyWidget {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    Theme::light().make_current();
+    // The window follows the system light/dark setting (the default
+    // `ThemeMode::System`); `SHOT=` captures pin light so docs shots are stable.
     #[cfg(not(target_family = "wasm"))]
     {
         if let Ok(spec) = std::env::var("SHOT") {
+            set_theme_mode(ThemeMode::Light);
             return capture::shot(&spec, app, theme().colors.background);
         }
     }

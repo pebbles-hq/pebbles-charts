@@ -20,7 +20,7 @@ categories = ["gui", "visualization"]
 [dependencies]
 # Pinned to a reviewed framework commit — `cargo update` won't silently ingest an
 # unreviewed `main` HEAD. Bump the rev deliberately when adopting framework changes.
-pebbles = { git = "https://github.com/pebbles-hq/pebbles", rev = "2a3a995419bcb221dfec8ceec8fe3c513b1bf867" }
+pebbles = { git = "https://github.com/pebbles-hq/pebbles", rev = "5a9fdbd5bb782418abb7cd34e8b69a0da6577fb8" }
 
 # Warn-only lints (CI runs clippy warn-only until the backlog is measured; never bake
 # `deny` into the manifest). The clippy set targets the hostile-input classes a charting
