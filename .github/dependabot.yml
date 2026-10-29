@@ -9,10 +9,10 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
-      # The GPU/windowing stack moves in lockstep (vello ↔ wgpu ↔ winit); upgrading them
+      # The GPU/windowing stack moves in lockstep (wgpu ↔ winit); upgrading them
       # one at a time produces PRs that cannot compile.
       graphics-stack:
-        patterns: ["vello", "vello_hybrid", "wgpu", "winit", "peniko", "kurbo", "parley"]
+        patterns: ["wgpu", "winit", "peniko", "kurbo", "cosmic-text"]
       dev-dependencies:
         dependency-type: development
 

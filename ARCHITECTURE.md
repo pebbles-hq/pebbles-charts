@@ -127,7 +127,7 @@ Labels and data read-outs always reflect the *target* values, never the mid-anim
 ## Rendering & export
 
 Charts paint via the framework `Canvas` (solid + gradient fills, solid + dashed strokes) on
-whichever Vello backend the app builds (`vello-hybrid` by default). Text is GPU-rendered by
+the framework's wgpu renderer. Text is GPU-rendered by
 the framework. A chart is a widget, so it can't rasterize itself — **export** goes through
 the framework's offscreen capture (`pebbles::shell::capture::capture_png`), which renders any
 widget headlessly on an offscreen GPU target.
